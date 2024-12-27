@@ -304,6 +304,64 @@ void RenderTeamData(int teamIndex, const TeamStats& teamData, HINSTANCE hSelf)
 			ImGui::Text("%s", formattedDamage.c_str());
 		}
 	}
+	// Total Damage
+	uint64_t totalDownedContToDisplay = 7;
+	if (Settings::vsLoggedPlayersOnly) {
+		totalDownedContToDisplay = useSquadStats ? teamData.squadStats.totalDownedContributionVsPlayers : teamData.totalDownedContributionVsPlayers;
+	}
+	else {
+		totalDownedContToDisplay = useSquadStats ? teamData.squadStats.totalDownedContribution : teamData.totalDownedContribution;
+	}
+
+	if (Settings::showTeamDamage) {
+		if (Settings::showClassIcons) {
+			if (Damage && Damage->Resource) {
+				ImGui::Image(Damage->Resource, ImVec2(sz, sz));
+				ImGui::SameLine(0, 5);
+			}
+			else {
+				Damage = APIDefs->Textures.GetOrCreateFromResource("DAMAGE_ICON", DAMAGE, hSelf);
+			}
+		}
+
+		std::string formattedDamage = formatDamage(totalDownedContToDisplay);
+
+		if (Settings::showClassNames) {
+			ImGui::Text("Down Cont: %s", formattedDamage.c_str());
+		}
+		else {
+			ImGui::Text("%s", formattedDamage.c_str());
+		}
+	}
+	// Total Damage
+	uint64_t totalKillContToDisplay = 0;
+	if (Settings::vsLoggedPlayersOnly) {
+		totalKillContToDisplay = useSquadStats ? teamData.squadStats.totalKillContributionVsPlayers : teamData.totalKillContributionVsPlayers;
+	}
+	else {
+		totalKillContToDisplay = useSquadStats ? teamData.squadStats.totalKillContribution : teamData.totalKillContribution;
+	}
+
+	if (Settings::showTeamDamage) {
+		if (Settings::showClassIcons) {
+			if (Damage && Damage->Resource) {
+				ImGui::Image(Damage->Resource, ImVec2(sz, sz));
+				ImGui::SameLine(0, 5);
+			}
+			else {
+				Damage = APIDefs->Textures.GetOrCreateFromResource("DAMAGE_ICON", DAMAGE, hSelf);
+			}
+		}
+
+		std::string formattedDamage = formatDamage(totalKillContToDisplay);
+
+		if (Settings::showClassNames) {
+			ImGui::Text("Kill Cont: %s", formattedDamage.c_str());
+		}
+		else {
+			ImGui::Text("%s", formattedDamage.c_str());
+		}
+	}
 
 	// Total Strike Damage
 	uint64_t totalStrikeDamageToDisplay = 0;

@@ -84,7 +84,6 @@ struct TextureInfo {
 };
 
 
-// Structures
 struct Agent {
     uint64_t address;
     uint32_t professionId;
@@ -111,9 +110,11 @@ struct SpecStats {
     uint64_t totalDamageVsPlayers = 0;
     uint64_t totalStrikeDamageVsPlayers = 0;
     uint64_t totalCondiDamageVsPlayers = 0;
+    uint64_t totalDownedContribution = 0;
+    uint64_t totalDownedContributionVsPlayers = 0;
+    uint64_t totalKillContribution = 0;
+    uint64_t totalKillContributionVsPlayers = 0;
 };
-
-
 
 struct SquadStats {
     uint32_t totalPlayers = 0;
@@ -128,6 +129,10 @@ struct SquadStats {
     uint64_t totalStrikeDamageVsPlayers = 0;
     uint64_t totalCondiDamageVsPlayers = 0;
     uint32_t totalKillsVsPlayers = 0;
+    uint64_t totalDownedContribution = 0;
+    uint64_t totalDownedContributionVsPlayers = 0;
+    uint64_t totalKillContribution = 0;
+    uint64_t totalKillContributionVsPlayers = 0;
     float getKillDeathRatio() const {
         if (totalDeathsFromKillingBlows == 0) {
             return static_cast<float>(totalKills);
@@ -150,6 +155,10 @@ struct TeamStats {
     uint64_t totalStrikeDamageVsPlayers = 0;
     uint64_t totalCondiDamageVsPlayers = 0;
     uint32_t totalKillsVsPlayers = 0;
+    uint64_t totalDownedContribution = 0;
+    uint64_t totalDownedContributionVsPlayers = 0;
+    uint64_t totalKillContribution = 0;
+    uint64_t totalKillContributionVsPlayers = 0;
     bool isPOVTeam = false;
     float getKillDeathRatio() const {
         if (totalDeathsFromKillingBlows == 0) {

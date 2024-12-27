@@ -19,10 +19,10 @@
 std::unordered_set<std::wstring> processedFiles;
 std::filesystem::file_time_type maxProcessedTime = std::filesystem::file_time_type::min();
 
-void updateStats(TeamStats& teamStats, Agent* agent, int32_t value, bool isDamage, bool isKill, bool vsPlayer, bool isStrikeDamage, bool isCondiDamage) {
+void updateStats(TeamStats& teamStats, Agent* agent, int32_t value, bool isDamage, bool isKill, bool vsPlayer,
+	bool isStrikeDamage, bool isCondiDamage, bool isDownedContribution, bool isKillContribution) {
 	auto& specStats = teamStats.eliteSpecStats[agent->eliteSpec];
-	
-	// Update team stats
+
 	if (isDamage) {
 		teamStats.totalDamage += value;
 		specStats.totalDamage += value;
@@ -49,6 +49,24 @@ void updateStats(TeamStats& teamStats, Agent* agent, int32_t value, bool isDamag
 				specStats.totalCondiDamageVsPlayers += value;
 			}
 		}
+
+		if (isDownedContribution) {
+			teamStats.totalDownedContribution += value;
+			specStats.totalDownedContribution += value;
+			if (vsPlayer) {
+				teamStats.totalDownedContributionVsPlayers += value;
+				specStats.totalDownedContributionVsPlayers += value;
+			}
+		}
+
+		if (isKillContribution) {
+			teamStats.totalKillContribution += value;
+			specStats.totalKillContribution += value;
+			if (vsPlayer) {
+				teamStats.totalKillContributionVsPlayers += value;
+				specStats.totalKillContributionVsPlayers += value;
+			}
+		}
 	}
 
 	if (isKill) {
@@ -60,12 +78,10 @@ void updateStats(TeamStats& teamStats, Agent* agent, int32_t value, bool isDamag
 		}
 	}
 
-	// If the agent is in the squad
 	if (teamStats.isPOVTeam && agent->subgroupNumber > 0) {
 		auto& squadStats = teamStats.squadStats;
 		auto& squadSpecStats = squadStats.eliteSpecStats[agent->eliteSpec];
 
-		// Update squad stats
 		if (isDamage) {
 			squadStats.totalDamage += value;
 			squadSpecStats.totalDamage += value;
@@ -90,6 +106,24 @@ void updateStats(TeamStats& teamStats, Agent* agent, int32_t value, bool isDamag
 				else if (isCondiDamage) {
 					squadStats.totalCondiDamageVsPlayers += value;
 					squadSpecStats.totalCondiDamageVsPlayers += value;
+				}
+			}
+
+			if (isDownedContribution) {
+				squadStats.totalDownedContribution += value;
+				squadSpecStats.totalDownedContribution += value;
+				if (vsPlayer) {
+					squadStats.totalDownedContributionVsPlayers += value;
+					squadSpecStats.totalDownedContributionVsPlayers += value;
+				}
+			}
+
+			if (isKillContribution) {
+				squadStats.totalKillContribution += value;
+				squadSpecStats.totalKillContribution += value;
+				if (vsPlayer) {
+					squadStats.totalKillContributionVsPlayers += value;
+					squadSpecStats.totalKillContributionVsPlayers += value;
 				}
 			}
 		}
@@ -190,6 +224,113 @@ void parseAgents(const std::vector<char>& bytes, size_t& offset, uint32_t agentC
 	}
 }
 
+bool isDamageInDownSequence(const Agent* agent, const std::vector<CombatEvent>& events, uint64_t currentTime) {
+	bool currentlyDowned = false;
+	for (const auto& event : events) {
+		if (event.time < currentTime) {
+			if (event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDown) &&
+				event.srcAgent == agent->address) {
+				currentlyDowned = true;
+			}
+			else if (event.isStateChange == static_cast<uint8_t>(StateChange::ChangeUp) &&
+				event.srcAgent == agent->address) {
+				currentlyDowned = false;
+			}
+		}
+	}
+	if (currentlyDowned) return false;
+
+	uint64_t nextDownTime = UINT64_MAX;
+	for (const auto& event : events) {
+		if (event.time > currentTime &&
+			event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDown) &&
+			event.srcAgent == agent->address) {
+			nextDownTime = event.time;
+			break;
+		}
+	}
+
+	if (nextDownTime == UINT64_MAX) return false;
+
+	uint64_t lastHighHealthTime = 0;
+	const uint64_t TWO_SECONDS = 2000;
+
+	for (auto it = events.rbegin(); it != events.rend(); ++it) {
+		const auto& event = *it;
+		if (event.time >= currentTime) continue;
+
+		if (event.isStateChange == static_cast<uint8_t>(StateChange::HealthUpdate) &&
+			event.srcAgent == agent->address) {
+			float healthPercent = (event.dstAgent * 100.0f) / event.value;
+			if (healthPercent > 98.0f) {
+				lastHighHealthTime = event.time;
+				break;
+			}
+		}
+	}
+
+	if (lastHighHealthTime > 0) {
+		return currentTime >= lastHighHealthTime - TWO_SECONDS &&
+			currentTime <= nextDownTime;
+	}
+
+	return false;
+}
+
+bool isDamageInKillSequence(const Agent* agent, const std::vector<CombatEvent>& events, uint64_t currentTime) {
+	bool currentlyDowned = false;
+	for (const auto& event : events) {
+		if (event.time < currentTime) {
+			if (event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDown) &&
+				event.srcAgent == agent->address) {
+				currentlyDowned = true;
+			}
+			else if (event.isStateChange == static_cast<uint8_t>(StateChange::ChangeUp) &&
+				event.srcAgent == agent->address) {
+				currentlyDowned = false;
+			}
+			else if (event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDead) &&
+				event.srcAgent == agent->address) {
+				currentlyDowned = false;
+			}
+		}
+	}
+	if (!currentlyDowned) return false;
+
+	uint64_t deathTime = UINT64_MAX;
+	for (const auto& event : events) {
+		if (event.time > currentTime &&
+			event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDead) &&
+			event.srcAgent == agent->address) {
+			deathTime = event.time;
+			break;
+		}
+	}
+
+	if (deathTime == UINT64_MAX) return false;
+
+	uint64_t downTime = 0;
+	const uint64_t TWO_SECONDS = 2000;
+
+	for (auto it = events.rbegin(); it != events.rend(); ++it) {
+		const auto& event = *it;
+		if (event.time >= currentTime) continue;
+
+		if (event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDown) &&
+			event.srcAgent == agent->address) {
+			downTime = event.time;
+			break;
+		}
+	}
+
+	if (downTime > 0) {
+		return currentTime >= downTime - TWO_SECONDS &&
+			currentTime <= deathTime;
+	}
+
+	return false;
+}
+
 void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eventCount,
 	std::unordered_map<uint64_t, Agent>& agentsByAddress,
 	std::unordered_map<uint16_t, Agent*>& playersBySrcInstid,
@@ -208,16 +349,22 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 	// Create a mapping from instance IDs to agents
 	std::unordered_map<uint16_t, Agent*> agentsByInstid;
 
-	// First pass: Collect times, map agents to instance IDs, and process team assignments
+	// First collect all events
+	std::vector<CombatEvent> allEvents;
+	allEvents.reserve(eventCount); // Preallocate for efficiency
+
 	for (size_t i = 0; i < eventCount; ++i) {
 		size_t eventOffset = offset + (i * eventSize);
 		if (eventOffset + eventSize > bytes.size()) {
 			break;
 		}
-
 		CombatEvent event;
 		std::memcpy(&event, bytes.data() + eventOffset, eventSize);
+		allEvents.push_back(event);
+	}
 
+	// Process all events in a single pass for state changes and agent mapping
+	for (const auto& event : allEvents) {
 		earliestTime = std::min(earliestTime, event.time);
 		latestTime = std::max(latestTime, event.time);
 
@@ -268,7 +415,7 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 		}
 	}
 
-	// After processing all events and assigning teams, set the isPOVTeam flag
+	// Set POV team after processing all events
 	std::string povTeam;
 	if (agentsByAddress.find(povAgentID) != agentsByAddress.end()) {
 		Agent& povAgent = agentsByAddress[povAgentID];
@@ -283,10 +430,6 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 				("POV Agent's team is unknown - AgentID: " + std::to_string(povAgentID)).c_str());
 		}
 	}
-	else {
-		APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-			("POV Agent not found - AgentID: " + std::to_string(povAgentID)).c_str());
-	}
 
 	if (result.combatStartTime == UINT64_MAX) {
 		result.combatStartTime = (logStartTime != UINT64_MAX) ? logStartTime : earliestTime;
@@ -295,16 +438,8 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 		result.combatEndTime = (logEndTime != 0) ? logEndTime : latestTime;
 	}
 
-	// Second pass: Process deaths and downs events
-	for (size_t i = 0; i < eventCount; ++i) {
-		size_t eventOffset = offset + (i * eventSize);
-		if (eventOffset + eventSize > bytes.size()) {
-			break;
-		}
-
-		CombatEvent event;
-		std::memcpy(&event, bytes.data() + eventOffset, eventSize);
-
+	// Process deaths and downs events
+	for (const auto& event : allEvents) {
 		StateChange stateChange = static_cast<StateChange>(event.isStateChange);
 		if (stateChange == StateChange::ChangeDead || stateChange == StateChange::ChangeDown) {
 			uint16_t srcInstid = event.srcInstid;
@@ -331,16 +466,8 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 		}
 	}
 
-	// Third pass: Process damage and kill events
-	for (size_t i = 0; i < eventCount; ++i) {
-		size_t eventOffset = offset + (i * eventSize);
-		if (eventOffset + eventSize > bytes.size()) {
-			break;
-		}
-
-		CombatEvent event;
-		std::memcpy(&event, bytes.data() + eventOffset, eventSize);
-
+	// Process damage and kill events
+	for (const auto& event : allEvents) {
 		if (event.isStateChange == static_cast<uint8_t>(StateChange::None) &&
 			event.isActivation == static_cast<uint8_t>(Activation::None) &&
 			event.isBuffRemove == static_cast<uint8_t>(BuffRemove::None)) {
@@ -371,46 +498,45 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 
 						if (attackerTeam != "Unknown") {
 							bool vsPlayer = false;
+							bool isDownedContribution = false;
+							bool isKillContribution = false;
 
-							
 							auto dstIt = agentsByInstid.find(event.dstInstid);
 							if (dstIt != agentsByInstid.end()) {
 								Agent* target = dstIt->second;
 								if (target->team != "Unknown") {
 									vsPlayer = true;
+									isDownedContribution = isDamageInDownSequence(target, allEvents, event.time);
+									//isKillContribution = isDamageInKillSequence(target, allEvents, event.time);
 								}
 							}
 
-							
-							updateStats(result.teamStats[attackerTeam], attacker, damageValue, true, false, vsPlayer, isStrikeDamage, isCondiDamage);
+							updateStats(result.teamStats[attackerTeam], attacker, damageValue, true, false,
+								vsPlayer, isStrikeDamage, isCondiDamage, isDownedContribution, isKillContribution);
 						}
 					}
 				}
 			}
 
-			// Process KillingBlow events to collect kills per team
+			// Process KillingBlow events
 			if (resultCode == ResultCode::KillingBlow) {
-				
 				auto srcIt = playersBySrcInstid.find(event.srcInstid);
 				if (srcIt != playersBySrcInstid.end()) {
 					Agent* attacker = srcIt->second;
 					const std::string& attackerTeam = attacker->team;
 
 					if (attackerTeam != "Unknown") {
-						
 						auto dstIt = agentsByInstid.find(event.dstInstid);
 						if (dstIt != agentsByInstid.end()) {
 							Agent* target = dstIt->second;
 							const std::string& targetTeam = target->team;
 
 							if (targetTeam != "Unknown") {
-
 								result.teamStats[targetTeam].totalDeathsFromKillingBlows++;
-
 								if (result.teamStats[targetTeam].isPOVTeam && target->subgroupNumber > 0) {
 									result.teamStats[targetTeam].squadStats.totalDeathsFromKillingBlows++;
 								}
-								updateStats(result.teamStats[attackerTeam], attacker, 0, false, true, true, false, false);
+								updateStats(result.teamStats[attackerTeam], attacker, 0, false, true, true, false, false, false, false);
 							}
 						}
 					}
@@ -418,11 +544,6 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 			}
 		}
 	}
-
-
-
-
-
 
 	// Collect statistics
 	for (const auto& [srcInstid, agent] : playersBySrcInstid) {
@@ -448,48 +569,6 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 					", Name: " + agent->name).c_str());
 		}
 	}
-
-	// Log the totals
-	// for (const auto& [teamName, stats] : result.teamStats) {
-	//     std::string message = "Team: " + teamName +
-	//         ", Total Damage: " + std::to_string(stats.totalDamage) +
-	//         ", Damage vs Players: " + std::to_string(stats.totalDamageVsPlayers) +
-	//         ", Total Players: " + std::to_string(stats.totalPlayers) +
-	//         ", Total Downs: " + std::to_string(stats.totalDowned) +
-	//         ", Total Deaths: " + std::to_string(stats.totalDeaths) +
-	//         ", Total Kills: " + std::to_string(stats.totalKills) +
-	//         ", Kills vs Players: " + std::to_string(stats.totalKillsVsPlayers);
-	//     APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME, message.c_str());
-
-	//     // Log per specialization
-	//     for (const auto& [eliteSpec, specStats] : stats.eliteSpecStats) {
-	//         std::string specMessage = "  Elite Spec: " + eliteSpec +
-	//             ", Count: " + std::to_string(specStats.count) +
-	//             ", Total Damage: " + std::to_string(specStats.totalDamage) +
-	//             ", Damage vs Players: " + std::to_string(specStats.totalDamageVsPlayers) +
-	//             ", Total Kills: " + std::to_string(specStats.totalKills) +
-	//             ", Kills vs Players: " + std::to_string(specStats.totalKillsVsPlayers);
-	//         APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME, specMessage.c_str());
-	//     }
-
-	//     // Log squad stats if it's the POV team
-	//     if (stats.isPOVTeam) {
-	//         const auto& squadStats = stats.squadStats;
-	//         std::string squadMessage = "Squad Stats - Total Players: " + std::to_string(squadStats.totalPlayers) +
-	//             ", Total Damage: " + std::to_string(squadStats.totalDamage);
-	//         APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME, squadMessage.c_str());
-
-	//         for (const auto& [eliteSpec, squadSpecStats] : squadStats.eliteSpecStats) {
-	//             std::string squadSpecMessage = "  Squad Elite Spec: " + eliteSpec +
-	//                 ", Count: " + std::to_string(squadSpecStats.count) +
-	//                 ", Total Damage: " + std::to_string(squadSpecStats.totalDamage);
-	//             APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME, squadSpecMessage.c_str());
-	//         }
-	//     }
-	// }
-
-	APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
-		("Parsed EVTC file. Found " + std::to_string(result.totalIdentifiedPlayers) + " identified players").c_str());
 }
 
 ParsedData parseEVTCFile(const std::string& filePath) {
