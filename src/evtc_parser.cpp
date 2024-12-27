@@ -139,6 +139,61 @@ void updateStats(TeamStats& teamStats, Agent* agent, int32_t value, bool isDamag
 	}
 }
 
+
+std::unordered_map<uint64_t, AgentState> preProcessAgentStates(const std::vector<CombatEvent>& events) {
+	std::unordered_map<uint64_t, AgentState> agentStates;
+
+	for (const auto& event : events) {
+		auto& state = agentStates[event.srcAgent];
+
+		// Store all state change events for precise sequencing
+		if (event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDown) ||
+			event.isStateChange == static_cast<uint8_t>(StateChange::ChangeUp) ||
+			event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDead) ||
+			event.isStateChange == static_cast<uint8_t>(StateChange::HealthUpdate)) {
+			state.relevantEvents.push_back(event);
+		}
+
+		// Also maintain interval structures for quick filtering
+		if (event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDown)) {
+			state.downIntervals.emplace_back(event.time, UINT64_MAX);
+			state.currentlyDowned = true;
+		}
+		else if (event.isStateChange == static_cast<uint8_t>(StateChange::ChangeUp)) {
+			if (state.currentlyDowned && !state.downIntervals.empty()) {
+				state.downIntervals.back().second = event.time;
+				state.currentlyDowned = false;
+			}
+		}
+		else if (event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDead)) {
+			if (state.currentlyDowned && !state.downIntervals.empty()) {
+				state.downIntervals.back().second = event.time;
+				state.currentlyDowned = false;
+			}
+			state.deathIntervals.emplace_back(event.time, UINT64_MAX);
+		}
+		else if (event.isStateChange == static_cast<uint8_t>(StateChange::HealthUpdate)) {
+			float healthPercent = (event.dstAgent * 100.0f) / event.value;
+			state.healthUpdates.emplace_back(event.time, healthPercent);
+		}
+	}
+
+	// Sort all intervals and events
+	for (auto& [_, state] : agentStates) {
+		std::sort(state.healthUpdates.begin(), state.healthUpdates.end());
+		std::sort(state.downIntervals.begin(), state.downIntervals.end());
+		std::sort(state.deathIntervals.begin(), state.deathIntervals.end());
+
+		// Use explicit comparison function for CombatEvents
+		std::sort(state.relevantEvents.begin(), state.relevantEvents.end(),
+			[](const CombatEvent& a, const CombatEvent& b) -> bool {
+				return a.time < b.time;
+			});
+	}
+
+	return agentStates;
+}
+
 void parseAgents(const std::vector<char>& bytes, size_t& offset, uint32_t agentCount,
 	std::unordered_map<uint64_t, Agent>& agentsByAddress) {
 
@@ -224,27 +279,23 @@ void parseAgents(const std::vector<char>& bytes, size_t& offset, uint32_t agentC
 	}
 }
 
-bool isDamageInDownSequence(const Agent* agent, const std::vector<CombatEvent>& events, uint64_t currentTime) {
-	bool currentlyDowned = false;
-	for (const auto& event : events) {
-		if (event.time < currentTime) {
-			if (event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDown) &&
-				event.srcAgent == agent->address) {
-				currentlyDowned = true;
-			}
-			else if (event.isStateChange == static_cast<uint8_t>(StateChange::ChangeUp) &&
-				event.srcAgent == agent->address) {
-				currentlyDowned = false;
-			}
-		}
-	}
+bool isDamageInDownSequence(const Agent* agent, const AgentState& state, uint64_t currentTime) {
+	const uint64_t TWO_SECONDS = 2000;
+
+	// Quick check using intervals
+	bool currentlyDowned = std::any_of(state.downIntervals.begin(), state.downIntervals.end(),
+		[currentTime](const auto& interval) {
+			return currentTime >= interval.first &&
+				(interval.second == UINT64_MAX || currentTime <= interval.second);
+		});
+
 	if (currentlyDowned) return false;
 
+	// Find next down using original sequence
 	uint64_t nextDownTime = UINT64_MAX;
-	for (const auto& event : events) {
+	for (const auto& event : state.relevantEvents) {
 		if (event.time > currentTime &&
-			event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDown) &&
-			event.srcAgent == agent->address) {
+			event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDown)) {
 			nextDownTime = event.time;
 			break;
 		}
@@ -252,15 +303,13 @@ bool isDamageInDownSequence(const Agent* agent, const std::vector<CombatEvent>& 
 
 	if (nextDownTime == UINT64_MAX) return false;
 
+	// Find last high health using original sequence
 	uint64_t lastHighHealthTime = 0;
-	const uint64_t TWO_SECONDS = 2000;
-
-	for (auto it = events.rbegin(); it != events.rend(); ++it) {
+	for (auto it = state.relevantEvents.rbegin(); it != state.relevantEvents.rend(); ++it) {
 		const auto& event = *it;
 		if (event.time >= currentTime) continue;
 
-		if (event.isStateChange == static_cast<uint8_t>(StateChange::HealthUpdate) &&
-			event.srcAgent == agent->address) {
+		if (event.isStateChange == static_cast<uint8_t>(StateChange::HealthUpdate)) {
 			float healthPercent = (event.dstAgent * 100.0f) / event.value;
 			if (healthPercent > 98.0f) {
 				lastHighHealthTime = event.time;
@@ -277,31 +326,33 @@ bool isDamageInDownSequence(const Agent* agent, const std::vector<CombatEvent>& 
 	return false;
 }
 
-bool isDamageInKillSequence(const Agent* agent, const std::vector<CombatEvent>& events, uint64_t currentTime) {
+bool isDamageInKillSequence(const Agent* agent, const AgentState& state, uint64_t currentTime) {
+	const uint64_t TWO_SECONDS = 2000;
+
+	// Use original sequence to determine current state
 	bool currentlyDowned = false;
-	for (const auto& event : events) {
-		if (event.time < currentTime) {
-			if (event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDown) &&
-				event.srcAgent == agent->address) {
-				currentlyDowned = true;
-			}
-			else if (event.isStateChange == static_cast<uint8_t>(StateChange::ChangeUp) &&
-				event.srcAgent == agent->address) {
-				currentlyDowned = false;
-			}
-			else if (event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDead) &&
-				event.srcAgent == agent->address) {
-				currentlyDowned = false;
-			}
+	uint64_t downTime = 0;
+
+	for (const auto& event : state.relevantEvents) {
+		if (event.time >= currentTime) break;
+
+		if (event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDown)) {
+			currentlyDowned = true;
+			downTime = event.time;
+		}
+		else if (event.isStateChange == static_cast<uint8_t>(StateChange::ChangeUp) ||
+			event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDead)) {
+			currentlyDowned = false;
 		}
 	}
+
 	if (!currentlyDowned) return false;
 
+	// Find next death after current down
 	uint64_t deathTime = UINT64_MAX;
-	for (const auto& event : events) {
+	for (const auto& event : state.relevantEvents) {
 		if (event.time > currentTime &&
-			event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDead) &&
-			event.srcAgent == agent->address) {
+			event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDead)) {
 			deathTime = event.time;
 			break;
 		}
@@ -309,26 +360,8 @@ bool isDamageInKillSequence(const Agent* agent, const std::vector<CombatEvent>& 
 
 	if (deathTime == UINT64_MAX) return false;
 
-	uint64_t downTime = 0;
-	const uint64_t TWO_SECONDS = 2000;
-
-	for (auto it = events.rbegin(); it != events.rend(); ++it) {
-		const auto& event = *it;
-		if (event.time >= currentTime) continue;
-
-		if (event.isStateChange == static_cast<uint8_t>(StateChange::ChangeDown) &&
-			event.srcAgent == agent->address) {
-			downTime = event.time;
-			break;
-		}
-	}
-
-	if (downTime > 0) {
-		return currentTime >= downTime - TWO_SECONDS &&
-			currentTime <= deathTime;
-	}
-
-	return false;
+	return currentTime >= downTime - TWO_SECONDS &&
+		currentTime <= deathTime;
 }
 
 void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eventCount,
@@ -345,13 +378,11 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 	uint64_t povAgentID = 0;
 
 	const size_t eventSize = sizeof(CombatEvent);
-
-	// Create a mapping from instance IDs to agents
 	std::unordered_map<uint16_t, Agent*> agentsByInstid;
 
 	// First collect all events
 	std::vector<CombatEvent> allEvents;
-	allEvents.reserve(eventCount); // Preallocate for efficiency
+	allEvents.reserve(eventCount);
 
 	for (size_t i = 0; i < eventCount; ++i) {
 		size_t eventOffset = offset + (i * eventSize);
@@ -363,7 +394,10 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 		allEvents.push_back(event);
 	}
 
-	// Process all events in a single pass for state changes and agent mapping
+	// Pre-process agent states for efficient sequence checking
+	auto agentStates = preProcessAgentStates(allEvents);
+
+	// Process all events for state changes and agent mapping
 	for (const auto& event : allEvents) {
 		earliestTime = std::min(earliestTime, event.time);
 		latestTime = std::max(latestTime, event.time);
@@ -506,8 +540,11 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 								Agent* target = dstIt->second;
 								if (target->team != "Unknown") {
 									vsPlayer = true;
-									isDownedContribution = isDamageInDownSequence(target, allEvents, event.time);
-									//isKillContribution = isDamageInKillSequence(target, allEvents, event.time);
+									auto stateIt = agentStates.find(target->address);
+									if (stateIt != agentStates.end()) {
+										isDownedContribution = isDamageInDownSequence(target, stateIt->second, event.time);
+										isKillContribution = isDamageInKillSequence(target, stateIt->second, event.time);
+									}
 								}
 							}
 

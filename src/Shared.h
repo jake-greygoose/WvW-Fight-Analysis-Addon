@@ -99,7 +99,6 @@ struct Agent {
 };
 
 
-
 struct SpecStats {
     uint32_t count = 0;
     uint32_t totalKills = 0;
@@ -298,6 +297,13 @@ struct CombatEvent {
 };
 #pragma pack(pop)
 
+struct AgentState {
+    std::vector<std::pair<uint64_t, uint64_t>> downIntervals;
+    std::vector<std::pair<uint64_t, uint64_t>> deathIntervals;
+    std::vector<std::pair<uint64_t, float>> healthUpdates;
+    std::vector<CombatEvent> relevantEvents;  // Store original events for precise sequencing
+    bool currentlyDowned = false;
+};
 
 // enum
 
