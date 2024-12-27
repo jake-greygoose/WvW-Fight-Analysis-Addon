@@ -164,6 +164,61 @@ void initMaps() {
     };
 }
 
+struct ProfessionColor {
+    std::string name;
+    ImVec4 primaryColor;
+    ImVec4 secondaryColor;
+};
+
+std::vector<ProfessionColor> professionColorPair = {
+    {
+        "Guardian",
+        ImVec4(10 / 255.0f, 222 / 255.0f, 255 / 255.0f, 110 / 255.0f),
+        ImVec4(10 / 255.0f, 222 / 255.0f, 255 / 255.0f, 54 / 255.0f) 
+    },
+    {
+        "Warrior",
+        ImVec4(255 / 255.0f, 212 / 255.0f, 61 / 255.0f, 110 / 255.0f),
+        ImVec4(255 / 255.0f, 212 / 255.0f, 61 / 255.0f, 54 / 255.0f)
+    },
+    {
+        "Engineer",
+        ImVec4(227 / 255.0f, 115 / 255.0f, 41 / 255.0f, 110 / 255.0f),
+        ImVec4(227 / 255.0f, 115 / 255.0f, 41 / 255.0f, 54 / 255.0f)
+    },
+    {
+        "Ranger",
+        ImVec4(135 / 255.0f, 222 / 255.0f, 10 / 255.0f, 110 / 255.0f),
+        ImVec4(135 / 255.0f, 222 / 255.0f, 10 / 255.0f, 54 / 255.0f)
+    },
+    {
+        "Thief",
+        ImVec4(227 / 255.0f, 94 / 255.0f, 115 / 255.0f, 115 / 255.0f),
+        ImVec4(227 / 255.0f, 94 / 255.0f, 115 / 255.0f, 71 / 255.0f)
+    },
+    {
+        "Elementalist",
+        ImVec4(247 / 255.0f, 56 / 255.0f, 56 / 255.0f, 110 / 255.0f),
+        ImVec4(247 / 255.0f, 56 / 255.0f, 56 / 255.0f, 54 / 255.0f)
+    },
+    {
+        "Mesmer",
+        ImVec4(204 / 255.0f, 59 / 255.0f, 209 / 255.0f, 110 / 255.0f),
+        ImVec4(204 / 255.0f, 59 / 255.0f, 209 / 255.0f, 54 / 255.0f)
+    },
+    {
+        "Necromancer",
+        ImVec4(5 / 255.0f, 227 / 255.0f, 125 / 255.0f, 110 / 255.0f),
+        ImVec4(5 / 255.0f, 227 / 255.0f, 125 / 255.0f, 54 / 255.0f)
+    },
+    {
+        "Revenant",
+        ImVec4(161 / 255.0f, 41 / 255.0f, 41 / 255.0f, 115 / 255.0f),
+        ImVec4(161 / 255.0f, 41 / 255.0f, 41 / 255.0f, 71 / 255.0f)
+    }
+};
+
+
 std::unordered_map<std::string, TextureInfo> textureMap = {
     {"Berserker", {BERSERKER, &Berserker}},
     {"Bladesworn", {BLADESWORN, &Bladesworn}},
