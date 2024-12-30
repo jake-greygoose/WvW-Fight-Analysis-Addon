@@ -39,8 +39,12 @@ const char* SHOW_TEAM_DAMAGE = "ShowTeamDamage";
 const char* SHOW_TEAM_CONDI = "ShowTeamCondiDamage";
 const char* SHOW_TEAM_STRIKE = "ShowTeamCondiDamage";
 const char* SHOW_TEAM_KDR = "ShowTeamKDR";
+const char* SHOW_TEAM_DOWN_CONT = "ShowTeamDownCont";
+const char* SHOW_TEAM_KILL_CONT = "ShowTeamKillCont";
 //Specs
 const char* SHOW_SPEC_DAMAGE = "ShowSpecDamage";
+const char* SHOW_SPEC_DOWN_CONT = "ShowSpecDownCont";
+const char* SHOW_SPEC_KILL_CONT = "ShowSpecKillCont";
 const char* SORT_SPEC_DAMAGE = "SortSpecDamage";
 // Window Style
 const char* SHOW_SCROLL_BAR = "ShowScrollBar";
@@ -57,11 +61,20 @@ const char* WIDGET_WIDTH = "WidgetWidth";
 const char* WIDGET_TEXT_VERTICAL_OFFSET = "WidgetTextVerticalAlignOffset";
 const char* WIDGET_TEXT_HORIZONTAL_OFFSET = "WidgetTextHorizontalAlignOffset";
 const char* SHOW_WIDGET_ICON = "ShowWidgetIcon";
+// Sort
+const char* WINDOW_SORT = "WindowSort";
+const char* BAR_REPRESENTATION = "BarRepresentation";
+const char* BAR_REP_INDEPENDENT = "BarRepIndependent";
+
+const char* BAR_TEMPLATE = "BarTemplate";
+const char* BAR_STATS = "BarStats";
+
 
 namespace Settings
 {
 	std::mutex	Mutex;
 	json		Settings = json::object();
+
 
 	void Load(std::filesystem::path aPath)
 	{
@@ -90,6 +103,16 @@ namespace Settings
 		{
 			Settings[WIDGET_STATS].get_to<std::string>(widgetStats);
 			strcpy_s(widgetStatsC, sizeof(widgetStatsC), widgetStats.c_str());
+		}
+		if (!Settings[WINDOW_SORT].is_null())
+		{
+			Settings[WINDOW_SORT].get_to<std::string>(windowSort);
+			strcpy_s(windowSortC, sizeof(windowSortC), windowSort.c_str());
+		}
+		if (!Settings[BAR_REPRESENTATION].is_null())
+		{
+			Settings[BAR_REPRESENTATION].get_to<std::string>(barRepresentation);
+			strcpy_s(barRepresentationC, sizeof(barRepresentationC), barRepresentation.c_str());
 		}
 		if (!Settings[SHOW_NEW_PARSE_ALERT].is_null())
 		{
@@ -156,6 +179,10 @@ namespace Settings
 		{
 			Settings[VS_LOGGED_PLAYERS_ONLY].get_to<bool>(vsLoggedPlayersOnly);
 		}
+		if (!Settings[BAR_REP_INDEPENDENT].is_null())
+		{
+			Settings[BAR_REP_INDEPENDENT].get_to<bool>(barRepIndependent);
+		}
 		if (!Settings[SQUAD_PLAYERS_ONLY].is_null())
 		{
 			Settings[SQUAD_PLAYERS_ONLY].get_to<bool>(squadPlayersOnly);
@@ -168,6 +195,11 @@ namespace Settings
 		{
 			Settings[CUSTOM_LOG_PATH].get_to<std::string>(LogDirectoryPath);
 			strcpy_s(LogDirectoryPathC, sizeof(LogDirectoryPathC), LogDirectoryPath.c_str());
+		}
+		if (!Settings[BAR_TEMPLATE].is_null())
+		{
+			Settings[BAR_TEMPLATE].get_to<std::string>(barTemplate);
+			strcpy_s(barTemplateC, sizeof(barTemplateC), barTemplate.c_str());
 		}
 		if (!Settings[LOG_HISTORY_SIZE].is_null())
 		{
@@ -210,10 +242,26 @@ namespace Settings
 		{
 			Settings[SHOW_TEAM_KDR].get_to<bool>(showTeamKDR);
 		}
+		if (!Settings[SHOW_TEAM_DOWN_CONT].is_null())
+		{
+			Settings[SHOW_TEAM_DOWN_CONT].get_to<bool>(showTeamDownCont);
+		}
+		if (!Settings[SHOW_TEAM_KILL_CONT].is_null())
+		{
+			Settings[SHOW_TEAM_KILL_CONT].get_to<bool>(showTeamKillCont);
+		}
 		/* Spec Stats */
 		if (!Settings[SHOW_SPEC_DAMAGE].is_null())
 		{
 			Settings[SHOW_SPEC_DAMAGE].get_to<bool>(showSpecDamage);
+		}
+		if (!Settings[SHOW_SPEC_DOWN_CONT].is_null())
+		{
+			Settings[SHOW_SPEC_DOWN_CONT].get_to<bool>(showSpecDownCont);
+		}
+		if (!Settings[SHOW_SPEC_KILL_CONT].is_null())
+		{
+			Settings[SHOW_SPEC_KILL_CONT].get_to<bool>(showSpecKillCont);
 		}
 		if (!Settings[SORT_SPEC_DAMAGE].is_null())
 		{
@@ -256,11 +304,44 @@ namespace Settings
 		{
 			Settings[USE_NEXUS_ESC_CLOSE].get_to<bool>(useNexusEscClose);
 		}
+		if (!Settings[BAR_STATS].is_null())
+		{
+			barStats.clear();
+			for (const auto& stat : Settings[BAR_STATS])
+			{
+				BarStat barStat;
+				if (!stat["Representation"].is_null())
+				{
+					barStat.representation = stat["Representation"].get<std::string>();
+				}
+				if (!stat["PrimaryStat"].is_null())
+				{
+					barStat.primaryStat = stat["PrimaryStat"].get<std::string>();
+				}
+				if (!stat["SecondaryStat"].is_null())
+				{
+					barStat.secondaryStat = stat["SecondaryStat"].get<std::string>();
+				}
+				barStats.push_back(barStat);
+			}
+		}
+
 	}
 	void Save(std::filesystem::path aPath)
 	{
 		Settings::Mutex.lock();
 		{
+			json barStatsArray = json::array();
+			for (const auto& stat : barStats)
+			{
+				json barStat;
+				barStat["Representation"] = stat.representation;
+				barStat["PrimaryStat"] = stat.primaryStat;
+				barStat["SecondaryStat"] = stat.secondaryStat;
+				barStatsArray.push_back(barStat);
+			}
+			Settings[BAR_STATS] = barStatsArray;
+
 			std::ofstream file(aPath);
 			file << Settings.dump(1, '\t') << std::endl;
 			file.close();
@@ -306,9 +387,13 @@ namespace Settings
 	bool showTeamCondiDamage = false;
 	bool showTeamStrikeDamage = false;
 	bool showTeamKDR = false;
+	bool showTeamDownCont = false;
+	bool showTeamKillCont = false;
 	// Spec Stats
 	bool showSpecDamage = true;
 	bool sortSpecDamage = false;
+	bool showSpecDownCont = false;
+	bool showSpecKillCont = false;
 	// Window Style
 	bool showScrollBar = true;
 	bool useTabbedView = true;
@@ -325,4 +410,18 @@ namespace Settings
 	float widgetTextVerticalAlignOffset = 0.0f;
 	float widgetTextHorizontalAlignOffset = 0.0f;
 	bool showWidgetIcon = true;
+	// sort
+	std::string windowSort;
+	char windowSortC[256] = "players";
+	std::string barRepresentation = "players";
+	char barRepresentationC[32] = "players";
+	bool barRepIndependent = false;
+
+	std::string barTemplate;
+	char barTemplateC[256] = "@1 @2 @3 (@4)";
+
+	std::vector<BarStat> barStats = {
+	BarStat("players", "damage", "strips"),
+	BarStat("damage", "damage", "down cont")
+	};
 }

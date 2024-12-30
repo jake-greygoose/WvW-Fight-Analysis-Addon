@@ -142,6 +142,79 @@ void AddonRender()
 {
 
 
+    if (ImGui::Begin("Bar Stats Debug"))
+    {
+        // Display current bar stats
+        ImGui::Text("Current Bar Stats (%zu entries):", Settings::barStats.size());
+
+        for (size_t i = 0; i < Settings::barStats.size(); i++)
+        {
+            const auto& stat = Settings::barStats[i];
+
+            ImGui::PushID(static_cast<int>(i));
+
+            ImGui::Separator();
+            ImGui::Text("Bar Stat %zu:", i + 1);
+
+            // Display the values with labels
+            ImGui::Text("Representation: %s", stat.representation.c_str());
+            ImGui::Text("Primary Stat: %s", stat.primaryStat.c_str());
+            ImGui::Text("Secondary Stat: %s", stat.secondaryStat.c_str());
+
+            // Add a button to remove this entry
+            if (ImGui::Button("Remove"))
+            {
+                Settings::barStats.erase(Settings::barStats.begin() + i);
+                i--; // Adjust index after removal
+                continue;
+            }
+
+            ImGui::PopID();
+        }
+
+        // Add new entry section
+        ImGui::Separator();
+        ImGui::Text("Add New Bar Stat:");
+
+        // Static variables to hold new entry data
+        static char newRep[128] = "";
+        static char newPrimary[128] = "";
+        static char newSecondary[128] = "";
+
+        ImGui::InputText("New Representation", newRep, sizeof(newRep));
+        ImGui::InputText("New Primary Stat", newPrimary, sizeof(newPrimary));
+        ImGui::InputText("New Secondary Stat", newSecondary, sizeof(newSecondary));
+
+        if (ImGui::Button("Add New Entry"))
+        {
+            if (strlen(newRep) > 0 && strlen(newPrimary) > 0 && strlen(newSecondary) > 0)
+            {
+                Settings::barStats.push_back(BarStat(newRep, newPrimary, newSecondary));
+
+                // Clear the input fields
+                newRep[0] = '\0';
+                newPrimary[0] = '\0';
+                newSecondary[0] = '\0';
+            }
+        }
+
+        // Add buttons to save/load/reset
+        ImGui::Separator();
+        if (ImGui::Button("Save Settings"))
+        {
+            Settings::Save("settings.json"); // Adjust path as needed
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("Load Settings"))
+        {
+            Settings::Load("settings.json"); // Adjust path as needed
+        }
+
+
+        ImGui::End();
+    }
+
     if (!NexusLink || !NexusLink->IsGameplay || !MumbleLink || MumbleLink->Context.IsMapOpen)
     {
         return;

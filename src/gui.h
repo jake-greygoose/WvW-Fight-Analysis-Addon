@@ -6,7 +6,18 @@
 #include "mumble/Mumble.h"
 #include "imgui/imgui.h"
 
-void DrawBar(float frac, int count, uint64_t totalDamage, const ImVec4& color, const std::string& eliteSpec, bool showDamage, HINSTANCE hSelf);
+void DrawBar(
+    float frac,
+    int count,
+    const std::string& barRep,
+    const SpecStats& stats,
+    bool vsLogPlayers,
+    const ImVec4& primaryColor,
+    const ImVec4& secondaryColor,
+    const std::string& eliteSpec,
+    bool showDamage,
+    HINSTANCE hSelf
+);
 void RenderSimpleRatioBar(
     const std::vector<float>& counts,
     const std::vector<ImVec4>& colors,

@@ -164,17 +164,12 @@ void initMaps() {
     };
 }
 
-struct ProfessionColor {
-    std::string name;
-    ImVec4 primaryColor;
-    ImVec4 secondaryColor;
-};
 
-std::vector<ProfessionColor> professionColorPair = {
+const std::vector<ProfessionColor> professionColorPair = {
     {
         "Guardian",
-        ImVec4(10 / 255.0f, 222 / 255.0f, 255 / 255.0f, 110 / 255.0f),
-        ImVec4(10 / 255.0f, 222 / 255.0f, 255 / 255.0f, 54 / 255.0f) 
+        ImVec4(10 / 255.0f, 222 / 255.0f, 255 / 255.0f, 110 / 255.0f),  // Primary Color
+        ImVec4(10 / 255.0f, 222 / 255.0f, 255 / 255.0f, 54 / 255.0f)    // Secondary Color
     },
     {
         "Warrior",

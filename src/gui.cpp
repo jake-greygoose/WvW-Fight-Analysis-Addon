@@ -3,6 +3,7 @@
 #include "Settings.h"
 #include "Shared.h"
 #include "utils.h"
+#include "BarTemplate.h"
 #include "resource.h"
 #include "nexus/Nexus.h"
 #include "mumble/Mumble.h"
@@ -11,174 +12,261 @@
 #include <iomanip>
 #include <algorithm>
 
+uint64_t getSortValue(const std::string& sortCriteria, const SpecStats& stats, bool vsLogPlayers) {
+	if (sortCriteria == "players") {
+		return stats.count;
+	}
+	else if (sortCriteria == "damage") {
+		return vsLogPlayers ? stats.totalDamageVsPlayers : stats.totalDamage;
+	}
+	else if (sortCriteria == "down cont") {
+		return vsLogPlayers ? stats.totalDownedContributionVsPlayers : stats.totalDownedContribution;
+	}
+	else if (sortCriteria == "kill cont") {
+		return vsLogPlayers ? stats.totalKillContributionVsPlayers : stats.totalKillContribution;
+	}
+	else if (sortCriteria == "deaths") {
+		return stats.totalDeaths;
+	}
+	else if (sortCriteria == "downs") {
+		return stats.totalDowned;
+	}
+	return 0; // Default to 0 if criteria not found
+}
+
+uint64_t getBarValue(const std::string& representation, const SpecStats& stats, bool vsLogPlayers) {
+	if (representation == "players") {
+		return stats.count;
+	}
+	else if (representation == "damage") {
+		return vsLogPlayers ? stats.totalDamageVsPlayers : stats.totalDamage;
+	}
+	else if (representation == "down cont") {
+		return vsLogPlayers ? stats.totalDownedContributionVsPlayers : stats.totalDownedContribution;
+	}
+	else if (representation == "kill cont") {
+		return vsLogPlayers ? stats.totalKillContributionVsPlayers : stats.totalKillContribution;
+	}
+	else if (representation == "deaths") {
+		return stats.totalDeaths;
+	}
+	else if (representation == "downs") {
+		return stats.totalDowned;
+	}
+	return 0;
+}
+
+std::pair<uint64_t, uint64_t> getSecondaryBarValues(
+	const std::string& barRep,
+	const SpecStats& stats,
+	bool vsLogPlayers
+) {
+
+	if (barRep == "damage") {
+		uint64_t primaryValue = vsLogPlayers ? stats.totalDamageVsPlayers : stats.totalDamage;
+		uint64_t secondaryValue = vsLogPlayers ? stats.totalDownedContributionVsPlayers : stats.totalDownedContribution;
+		return { primaryValue, secondaryValue };
+	}
+	else if (barRep == "down cont") {
+		uint64_t primaryValue = vsLogPlayers ? stats.totalDownedContributionVsPlayers : stats.totalDownedContribution;
+		uint64_t secondaryValue = vsLogPlayers ? stats.totalKillContributionVsPlayers : stats.totalKillContribution;
+		return { primaryValue, secondaryValue };
+	}
+
+	return { 0, 0 };
+}
+
+auto getSpecSortComparator(const std::string& sortCriteria, bool vsLogPlayers) {
+    return [sortCriteria, vsLogPlayers](
+        const std::pair<std::string, SpecStats>& a,
+        const std::pair<std::string, SpecStats>& b) {
+            // First try primary sort criteria
+            uint64_t valueA = getSortValue(sortCriteria, a.second, vsLogPlayers);
+            uint64_t valueB = getSortValue(sortCriteria, b.second, vsLogPlayers);
+            
+            if (valueA != valueB) {
+                return valueA > valueB;
+            }
+            
+            // If primary values are equal, sort by damage
+            uint64_t damageA = vsLogPlayers ? a.second.totalDamageVsPlayers : a.second.totalDamage;
+            uint64_t damageB = vsLogPlayers ? b.second.totalDamageVsPlayers : b.second.totalDamage;
+            
+            if (damageA != damageB) {
+                return damageA > damageB;
+            }
+            
+            // If damage is equal, sort by player count
+            if (a.second.count != b.second.count) {
+                return a.second.count > b.second.count;
+            }
+            
+            // If everything else is equal, sort alphabetically
+            return a.first < b.first;
+    };
+}
 
 
-void DrawBar(float frac, int count, uint64_t totalDamage, const ImVec4& color, const std::string& eliteSpec, bool showDamage, HINSTANCE hSelf)
-{
+void DrawBar(
+	float frac,
+	int count,
+	const std::string& barRep,
+	const SpecStats& stats,
+	bool vsLogPlayers,
+	const ImVec4& primaryColor,
+	const ImVec4& secondaryColor,
+	const std::string& eliteSpec,
+	bool showDamage,
+	HINSTANCE hSelf
+) {
+	// Get current cursor positions
 	ImVec2 cursor_pos = ImGui::GetCursorPos();
 	ImVec2 screen_pos = ImGui::GetCursorScreenPos();
-	float bar_width = ImGui::GetContentRegionAvail().x * frac;
-	float bar_height = ImGui::GetTextLineHeight() + 4;
 
+	// Calculate bar dimensions
+	float bar_width = ImGui::GetContentRegionAvail().x * frac;
+	float bar_height = ImGui::GetTextLineHeight() + 4.0f; // Slight padding
+
+	// Draw the primary bar
 	ImGui::GetWindowDrawList()->AddRectFilled(
 		screen_pos,
 		ImVec2(screen_pos.x + bar_width, screen_pos.y + bar_height),
-		ImGui::ColorConvertFloat4ToU32(color)
+		ImGui::ColorConvertFloat4ToU32(primaryColor)
 	);
 
-	ImGui::SetCursorPos(ImVec2(cursor_pos.x + 5, cursor_pos.y + 2));
+	// Get values for primary and secondary bars
+	auto [primaryValue, secondaryValue] = getSecondaryBarValues(barRep, stats, vsLogPlayers);
 
-	ImGui::Text("%d", count);
+	// Draw the secondary bar if applicable
+	if (primaryValue > 0 && secondaryValue > 0 && secondaryValue <= primaryValue) {
+		float secondary_frac = static_cast<float>(secondaryValue) / static_cast<float>(primaryValue);
+		secondary_frac = std::clamp(secondary_frac, 0.0f, 1.0f);
+		float secondary_width = bar_width * secondary_frac;
 
-	ImGui::SameLine(0, 5);
+		ImGui::GetWindowDrawList()->AddRectFilled(
+			screen_pos,
+			ImVec2(screen_pos.x + secondary_width, screen_pos.y + bar_height),
+			ImGui::ColorConvertFloat4ToU32(secondaryColor)
+		);
+	}
 
-	if (Settings::showClassIcons)
+	// Set cursor position for text
+	ImGui::SetCursorPos(ImVec2(cursor_pos.x + 5.0f, cursor_pos.y + 2.0f));
+
+	// Render the template
+	BarTemplateRenderer::RenderTemplate(
+		count,
+		eliteSpec,
+		Settings::useShortClassNames,
+		primaryValue,
+		secondaryValue,
+		hSelf,
+		ImGui::GetFontSize()
+	);
+
+	// Add tooltip for more detailed information
+	if (ImGui::IsItemHovered())
 	{
-		float sz = ImGui::GetFontSize();
-		int resourceId;
-		Texture** texturePtrPtr = getTextureInfo(eliteSpec, &resourceId);
-
-		if (texturePtrPtr && *texturePtrPtr && (*texturePtrPtr)->Resource)
-		{
-			ImGui::Image((*texturePtrPtr)->Resource, ImVec2(sz, sz));
-		}
-		else
-		{
-			if (resourceId != 0 && texturePtrPtr) {
-				*texturePtrPtr = APIDefs->Textures.GetOrCreateFromResource((eliteSpec + "_ICON").c_str(), resourceId, hSelf);
-				if (*texturePtrPtr && (*texturePtrPtr)->Resource)
-				{
-					ImGui::Image((*texturePtrPtr)->Resource, ImVec2(sz, sz));
-				}
-				else
-				{
-					ImGui::Text("%c%c", eliteSpec[0], eliteSpec[1]);
-				}
-			}
-			else
-			{
-				ImGui::Text("%c%c", eliteSpec[0], eliteSpec[1]);
+		std::string tooltip;
+		if (barRep == "damage") {
+			tooltip = "Total Damage: " + std::to_string(primaryValue);
+			if (secondaryValue > 0) {
+				tooltip += "\nDowned Contribution: " + std::to_string(secondaryValue) +
+					" (" + std::to_string(static_cast<int>((static_cast<float>(secondaryValue) /
+						static_cast<float>(primaryValue)) * 100.0f)) + "%)";
 			}
 		}
-		ImGui::SameLine(0, 5);
+		ImGui::SetTooltip("%s", tooltip.c_str());
 	}
 
-
-	if (Settings::showClassNames)
-	{
-		if (Settings::useShortClassNames)
-		{
-			std::string shortClassName;
-			auto clnIt = eliteSpecShortNames.find(eliteSpec);
-			if (clnIt != eliteSpecShortNames.end()) {
-				shortClassName = clnIt->second;
-				ImGui::Text("%s", shortClassName.c_str());
-			}
-			else
-			{
-				shortClassName = "Unk";
-				ImGui::Text("%s", shortClassName.c_str());
-			}
-		}
-		else
-		{
-			ImGui::Text("%s", eliteSpec.c_str());
-		}
-	}
-	else
-	{
-		ImGui::Text(" ");
-	}
-	if (showDamage) {
-		ImGui::SameLine(0, 5);
-
-		std::string formattedDamage = formatDamage(static_cast<double>(totalDamage));
-		ImGui::Text("(%s)", formattedDamage.c_str());
-	}
-
-
-	ImGui::SetCursorPosY(cursor_pos.y + bar_height + 2);
+	// Move cursor below the bar for the next item
+	ImGui::SetCursorPosY(cursor_pos.y + bar_height + 2.0f);
 }
 
-void RenderSpecializationBars(const TeamStats& teamData, int teamIndex, HINSTANCE hSelf)
-{
+void RenderSpecializationBars(const TeamStats& teamData, int teamIndex, HINSTANCE hSelf) {
+	// Determine if squad-specific stats should be used
 	bool useSquadStats = Settings::squadPlayersOnly && teamData.isPOVTeam;
-	bool sortByDamage = Settings::sortSpecDamage;
 	bool vsLogPlayers = Settings::vsLoggedPlayersOnly;
 	bool showDamage = Settings::showSpecDamage;
 
-	const std::unordered_map<std::string, SpecStats>& eliteSpecStatsToDisplay = useSquadStats ?
-		teamData.squadStats.eliteSpecStats : teamData.eliteSpecStats;
+	// Select the appropriate set of elite specialization stats
+	const std::unordered_map<std::string, SpecStats>& eliteSpecStatsToDisplay =
+		useSquadStats ? teamData.squadStats.eliteSpecStats : teamData.eliteSpecStats;
 
+	// Copy the elite specs into a sortable vector
 	std::vector<std::pair<std::string, SpecStats>> sortedClasses;
+	sortedClasses.reserve(eliteSpecStatsToDisplay.size());
 
 	for (const auto& [eliteSpec, stats] : eliteSpecStatsToDisplay) {
 		sortedClasses.emplace_back(eliteSpec, stats);
 	}
 
+	// Sort based on the selected criteria and secondary criteria
 	std::sort(sortedClasses.begin(), sortedClasses.end(),
-		[sortByDamage, vsLogPlayers](const std::pair<std::string, SpecStats>& a, const std::pair<std::string, SpecStats>& b) {
-			if (sortByDamage && !vsLogPlayers) {
-				return a.second.totalDamage > b.second.totalDamage;
-			}
-			else if (sortByDamage && vsLogPlayers) {
-				return a.second.totalDamageVsPlayers > b.second.totalDamageVsPlayers;
-			}
-			else {
-				return a.second.count > b.second.count;
-			}
-		});
+		getSpecSortComparator(Settings::windowSort, vsLogPlayers));
 
+	// Get the representation to use for bars
+	const std::string& barRep = Settings::barRepIndependent ? Settings::barRepresentation : Settings::windowSort;
+
+	// Find the maximum value for bar scaling based on selected representation
 	uint64_t maxValue = 0;
 	if (!sortedClasses.empty()) {
-		if (sortByDamage && !vsLogPlayers) {
-			maxValue = sortedClasses[0].second.totalDamage;
-		}
-		else if (sortByDamage && vsLogPlayers) {
-			maxValue = sortedClasses[0].second.totalDamageVsPlayers;
-		}
-		else {
-			maxValue = sortedClasses[0].second.count;
+		maxValue = getBarValue(barRep, sortedClasses.front().second, vsLogPlayers);
+		for (const auto& specPair : sortedClasses) {
+			uint64_t value = getBarValue(barRep, specPair.second, vsLogPlayers);
+			maxValue = std::max(maxValue, value);
 		}
 	}
 
+	// Iterate through each specialization and render the bars
 	for (const auto& specPair : sortedClasses) {
 		const std::string& eliteSpec = specPair.first;
 		const SpecStats& stats = specPair.second;
 		int count = stats.count;
 
-		uint64_t totalDamage;
-		if (vsLogPlayers) {
-			totalDamage = stats.totalDamageVsPlayers;
-		}
-		else {
-			totalDamage = stats.totalDamage;
-		}
+		// Calculate the fraction for bar size based on selected representation
+		uint64_t barValue = getBarValue(barRep, stats, vsLogPlayers);
+		float frac = (maxValue > 0) ?
+			static_cast<float>(barValue) / static_cast<float>(maxValue) : 0.0f;
 
-		uint64_t value = sortByDamage ? totalDamage : count;
-		float frac = (maxValue > 0) ? static_cast<float>(value) / maxValue : 0.0f;
+		// Get total damage and downed contribution for display
+		uint64_t totalDamage = vsLogPlayers ? stats.totalDamageVsPlayers : stats.totalDamage;
+		uint64_t totalDownedContribution = vsLogPlayers ?
+			stats.totalDownedContributionVsPlayers : stats.totalDownedContribution;
 
-		std::string professionName;
+		// Get profession colors
+		std::string professionName = "Unknown";
 		auto it = eliteSpecToProfession.find(eliteSpec);
 		if (it != eliteSpecToProfession.end()) {
 			professionName = it->second;
 		}
-		else {
-			professionName = "Unknown";
+
+		ImVec4 primaryColor = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+		ImVec4 secondaryColor = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+
+		auto colorIt = std::find_if(professionColorPair.begin(), professionColorPair.end(),
+			[&](const ProfessionColor& pc) { return pc.name == professionName; });
+
+		if (colorIt != professionColorPair.end()) {
+			primaryColor = colorIt->primaryColor;
+			secondaryColor = colorIt->secondaryColor;
 		}
 
-		ImVec4 color;
-		auto colorIt = professionColors.find(professionName);
-		if (colorIt != professionColors.end()) {
-			color = colorIt->second;
-		}
-		else {
-			color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-		}
-
-		DrawBar(frac, count, totalDamage, color, eliteSpec, showDamage, hSelf);
+		DrawBar(
+			frac,
+			count,
+			barRep,
+			stats,
+			vsLogPlayers,
+			primaryColor,
+			secondaryColor,
+			eliteSpec,
+			showDamage,
+			hSelf
+		);
 	}
 }
+
 
 void RenderTeamData(int teamIndex, const TeamStats& teamData, HINSTANCE hSelf)
 {
@@ -213,7 +301,6 @@ void RenderTeamData(int teamIndex, const TeamStats& teamData, HINSTANCE hSelf)
 	uint32_t totalDeathsfromKillingBlowsToDisplay = useSquadStats ? teamData.squadStats.totalDeathsFromKillingBlows : teamData.totalDeathsFromKillingBlows;
 	double kdRatioToDisplay = useSquadStats ? teamData.squadStats.getKillDeathRatio() : teamData.getKillDeathRatio();
 	std::string kdString = (std::ostringstream() << totalKillsToDisplay << "/" << totalDeathsfromKillingBlowsToDisplay << " (" << std::fixed << std::setprecision(2) << kdRatioToDisplay << ")").str();
-
 
 	if (Settings::showTeamKDR) {
 		if (Settings::showClassIcons) {
@@ -304,8 +391,9 @@ void RenderTeamData(int teamIndex, const TeamStats& teamData, HINSTANCE hSelf)
 			ImGui::Text("%s", formattedDamage.c_str());
 		}
 	}
-	// Total Damage
-	uint64_t totalDownedContToDisplay = 7;
+
+	// Total Downed Contribution
+	uint64_t totalDownedContToDisplay = 0;
 	if (Settings::vsLoggedPlayersOnly) {
 		totalDownedContToDisplay = useSquadStats ? teamData.squadStats.totalDownedContributionVsPlayers : teamData.totalDownedContributionVsPlayers;
 	}
@@ -313,15 +401,9 @@ void RenderTeamData(int teamIndex, const TeamStats& teamData, HINSTANCE hSelf)
 		totalDownedContToDisplay = useSquadStats ? teamData.squadStats.totalDownedContribution : teamData.totalDownedContribution;
 	}
 
-	if (Settings::showTeamDamage) {
+	if (Settings::showTeamDownCont) {
 		if (Settings::showClassIcons) {
-			if (Damage && Damage->Resource) {
-				ImGui::Image(Damage->Resource, ImVec2(sz, sz));
-				ImGui::SameLine(0, 5);
-			}
-			else {
-				Damage = APIDefs->Textures.GetOrCreateFromResource("DAMAGE_ICON", DAMAGE, hSelf);
-			}
+			// Add icon handling here if needed
 		}
 
 		std::string formattedDamage = formatDamage(totalDownedContToDisplay);
@@ -333,7 +415,8 @@ void RenderTeamData(int teamIndex, const TeamStats& teamData, HINSTANCE hSelf)
 			ImGui::Text("%s", formattedDamage.c_str());
 		}
 	}
-	// Total Damage
+
+	// Total Kill Contribution
 	uint64_t totalKillContToDisplay = 0;
 	if (Settings::vsLoggedPlayersOnly) {
 		totalKillContToDisplay = useSquadStats ? teamData.squadStats.totalKillContributionVsPlayers : teamData.totalKillContributionVsPlayers;
@@ -342,15 +425,9 @@ void RenderTeamData(int teamIndex, const TeamStats& teamData, HINSTANCE hSelf)
 		totalKillContToDisplay = useSquadStats ? teamData.squadStats.totalKillContribution : teamData.totalKillContribution;
 	}
 
-	if (Settings::showTeamDamage) {
+	if (Settings::showTeamKillCont) {
 		if (Settings::showClassIcons) {
-			if (Damage && Damage->Resource) {
-				ImGui::Image(Damage->Resource, ImVec2(sz, sz));
-				ImGui::SameLine(0, 5);
-			}
-			else {
-				Damage = APIDefs->Textures.GetOrCreateFromResource("DAMAGE_ICON", DAMAGE, hSelf);
-			}
+			// Add icon handling here if needed
 		}
 
 		std::string formattedDamage = formatDamage(totalKillContToDisplay);
@@ -423,10 +500,10 @@ void RenderTeamData(int teamIndex, const TeamStats& teamData, HINSTANCE hSelf)
 		}
 	}
 
+	// Render Specialization Bars
 	if (Settings::showSpecBars && !Settings::splitStatsWindow) {
 		ImGui::Separator();
 
-		bool sortByDamage = Settings::sortSpecDamage;
 		bool vsLogPlayers = Settings::vsLoggedPlayersOnly;
 		bool showDamage = Settings::showSpecDamage;
 
@@ -434,72 +511,75 @@ void RenderTeamData(int teamIndex, const TeamStats& teamData, HINSTANCE hSelf)
 			teamData.squadStats.eliteSpecStats : teamData.eliteSpecStats;
 
 		std::vector<std::pair<std::string, SpecStats>> sortedClasses;
+		sortedClasses.reserve(eliteSpecStatsToDisplay.size());
 
 		for (const auto& [eliteSpec, stats] : eliteSpecStatsToDisplay) {
 			sortedClasses.emplace_back(eliteSpec, stats);
 		}
 
+		// Sort based on primary and secondary criteria
 		std::sort(sortedClasses.begin(), sortedClasses.end(),
-			[sortByDamage, vsLogPlayers](const std::pair<std::string, SpecStats>& a, const std::pair<std::string, SpecStats>& b) {
-				if (sortByDamage && !vsLogPlayers) {
-					return a.second.totalDamage > b.second.totalDamage;
-				}
-				else if (sortByDamage && vsLogPlayers) {
-					return a.second.totalDamageVsPlayers > b.second.totalDamageVsPlayers;
-				}
-				else {
-					return a.second.count > b.second.count;
-				}
-			});
+			getSpecSortComparator(Settings::windowSort, vsLogPlayers));
 
+		// Get the representation to use for bars
+		const std::string& barRep = Settings::barRepIndependent ? Settings::barRepresentation : Settings::windowSort;
+
+		// Find the maximum value for bar scaling based on selected representation
 		uint64_t maxValue = 0;
 		if (!sortedClasses.empty()) {
-			if (sortByDamage && !vsLogPlayers) {
-				maxValue = sortedClasses[0].second.totalDamage;
-			}
-			else if (sortByDamage && vsLogPlayers) {
-				maxValue = sortedClasses[0].second.totalDamageVsPlayers;
-			}
-			else {
-				maxValue = sortedClasses[0].second.count;
+			maxValue = getBarValue(barRep, sortedClasses.front().second, vsLogPlayers);
+			for (const auto& specPair : sortedClasses) {
+				uint64_t value = getBarValue(barRep, specPair.second, vsLogPlayers);
+				maxValue = std::max(maxValue, value);
 			}
 		}
 
+		// Render each class bar
 		for (const auto& specPair : sortedClasses) {
 			const std::string& eliteSpec = specPair.first;
 			const SpecStats& stats = specPair.second;
 			int count = stats.count;
 
-			uint64_t totalDamage;
-			if (vsLogPlayers) {
-				totalDamage = stats.totalDamageVsPlayers;
-			}
-			else {
-				totalDamage = stats.totalDamage;
-			}
+			// Calculate the fraction for bar size based on selected representation
+			uint64_t barValue = getBarValue(barRep, stats, vsLogPlayers);
+			float frac = (maxValue > 0) ?
+				static_cast<float>(barValue) / static_cast<float>(maxValue) : 0.0f;
 
-			uint64_t value = sortByDamage ? totalDamage : count;
-			float frac = (maxValue > 0) ? static_cast<float>(value) / maxValue : 0.0f;
+			// Get total damage for display
+			uint64_t totalDamage = vsLogPlayers ? stats.totalDamageVsPlayers : stats.totalDamage;
+			uint64_t totalDownedContribution = vsLogPlayers ?
+				stats.totalDownedContributionVsPlayers : stats.totalDownedContribution;
 
-			std::string professionName;
+			// Get profession colors
+			std::string professionName = "Unknown";
 			auto it = eliteSpecToProfession.find(eliteSpec);
 			if (it != eliteSpecToProfession.end()) {
 				professionName = it->second;
 			}
-			else {
-				professionName = "Unknown";
+
+			ImVec4 primaryColor = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+			ImVec4 secondaryColor = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+
+			auto colorIt = std::find_if(professionColorPair.begin(), professionColorPair.end(),
+				[professionName](const ProfessionColor& pc) { return pc.name == professionName; });
+
+			if (colorIt != professionColorPair.end()) {
+				primaryColor = colorIt->primaryColor;
+				secondaryColor = colorIt->secondaryColor;
 			}
 
-			ImVec4 color;
-			auto colorIt = professionColors.find(professionName);
-			if (colorIt != professionColors.end()) {
-				color = colorIt->second;
-			}
-			else {
-				color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-			}
-
-			DrawBar(frac, count, totalDamage, color, eliteSpec, showDamage, hSelf);
+			DrawBar(
+				frac,
+				count,
+				barRep,
+				stats,
+				vsLogPlayers,
+				primaryColor,
+				secondaryColor,
+				eliteSpec,
+				showDamage,
+				hSelf
+			);
 		}
 	}
 }
@@ -607,7 +687,6 @@ void RenderSimpleRatioBar(
 
 	ImGui::Dummy(size);
 }
-
 
 void ratioBarSetup(HINSTANCE hSelf)
 {
@@ -1147,6 +1226,90 @@ void DrawAggregateStatsWindow(HINSTANCE hSelf)
 	ImGui::End();
 }
 
+void SortSpecMenu() {
+	Settings::windowSort = Settings::windowSortC;
+
+	struct SortOption {
+		const char* label;
+		const char* value;
+	};
+
+	const SortOption sortOptions[] = {
+		{"Players", "players"},
+		{"Damage", "damage"},
+		{"Down Cont", "down cont"},
+		{"Kill Cont", "kill cont"},
+		{"Deaths", "deaths"},
+		{"Downs", "downs"}
+	};
+
+	for (const auto& option : sortOptions) {
+		bool isSelected = Settings::windowSort == option.value;
+		if (ImGui::RadioButton(option.label, isSelected)) {
+			strcpy_s(Settings::windowSortC, sizeof(Settings::windowSortC), option.value);
+			Settings::windowSort = option.value;
+			Settings::Settings[WINDOW_SORT] = Settings::windowSortC;
+			Settings::Save(SettingsPath);
+		}
+	}
+}
+
+void BarRepMenu() {
+	if (Settings::barRepIndependent) {
+		if (ImGui::BeginMenu("Bar Display")) {
+			Settings::barRepresentation = Settings::barRepresentationC;
+			struct DisplayOption {
+				const char* label;
+				const char* value;
+			};
+
+			const DisplayOption displayOptions[] = {
+				{"Players", "players"},
+				{"Damage", "damage"},
+				{"Down Cont", "down cont"},
+				{"Kill Cont", "kill cont"},
+				{"Deaths", "deaths"},
+				{"Downs", "downs"}
+			};
+
+			for (const auto& option : displayOptions) {
+				bool isSelected = Settings::barRepresentation == option.value;
+				if (ImGui::RadioButton(option.label, isSelected)) {
+					strcpy_s(Settings::barRepresentationC, sizeof(Settings::barRepresentationC), option.value);
+					Settings::barRepresentation = option.value;
+					Settings::Settings[BAR_REPRESENTATION] = Settings::barRepresentationC;
+					Settings::Save(SettingsPath);
+				}
+			}
+
+			if (ImGui::InputText("Bar Template", Settings::barTemplateC, sizeof(Settings::barTemplateC))) {
+				Settings::barTemplate = Settings::barTemplateC;
+				Settings::Settings[BAR_TEMPLATE] = Settings::barTemplate;
+				Settings::Save(SettingsPath);
+				BarTemplateRenderer::ParseTemplate(Settings::barTemplate);
+			}
+
+			ImGui::SameLine();
+			if (ImGui::Button("Reset")) {
+				const char* defaultTemplate = "@1 @2 @3 (@4)";
+				strcpy_s(Settings::barTemplateC, sizeof(Settings::barTemplateC), defaultTemplate);
+				Settings::barTemplate = Settings::barTemplateC;
+				Settings::Settings[BAR_TEMPLATE] = Settings::barTemplate;
+				Settings::Save(SettingsPath);
+				BarTemplateRenderer::ParseTemplate(Settings::barTemplate);
+			}
+
+			ImGui::Text("Variables:");
+			ImGui::Text("  @1 = Player Count");
+			ImGui::Text("  @2 = Class Icon");
+			ImGui::Text("  @3 = Class Name");
+			ImGui::Text("  @4 = Primary Stat");
+			ImGui::Text("  @5 = Secondary Stat");
+
+			ImGui::EndMenu();
+		}
+	}
+}
 
 
 void RenderSpecializationsSettingsPopup()
@@ -1155,7 +1318,7 @@ void RenderSpecializationsSettingsPopup()
 	{
 		if (ImGui::BeginMenu("Display"))
 		{
-			if (ImGui::Checkbox("Show Spec Window", &Settings::showSpecBars))
+			if (ImGui::Checkbox("Show Class Window", &Settings::showSpecBars))
 			{
 				Settings::Settings[SHOW_SPEC_BARS] = Settings::showSpecBars;
 				Settings::Save(SettingsPath);
@@ -1165,17 +1328,27 @@ void RenderSpecializationsSettingsPopup()
 				Settings::Settings[USE_SHORT_CLASS_NAMES] = Settings::useShortClassNames;
 				Settings::Save(SettingsPath);
 			}
-			if (ImGui::Checkbox("Show Class Names", &Settings::showClassNames))
+			if (ImGui::Checkbox("Class Names", &Settings::showClassNames))
 			{
 				Settings::Settings[SHOW_CLASS_NAMES] = Settings::showClassNames;
 				Settings::Save(SettingsPath);
 			}
-			if (ImGui::Checkbox("Show Class Icons", &Settings::showClassIcons))
+			if (ImGui::Checkbox("Class Icons", &Settings::showClassIcons))
 			{
 				Settings::Settings[SHOW_CLASS_ICONS] = Settings::showClassIcons;
 				Settings::Save(SettingsPath);
 			}
-			if (ImGui::Checkbox("Show Class Outgoing Damage", &Settings::showSpecDamage))
+			if (ImGui::Checkbox("Class Outgoing Damage", &Settings::showSpecDamage))
+			{
+				Settings::Settings[SHOW_SPEC_DAMAGE] = Settings::showSpecDamage;
+				Settings::Save(SettingsPath);
+			}
+			if (ImGui::Checkbox("Class Down Cont", &Settings::showSpecDamage))
+			{
+				Settings::Settings[SHOW_SPEC_DAMAGE] = Settings::showSpecDamage;
+				Settings::Save(SettingsPath);
+			}
+			if (ImGui::Checkbox("Class Kill Cont", &Settings::showSpecDamage))
 			{
 				Settings::Settings[SHOW_SPEC_DAMAGE] = Settings::showSpecDamage;
 				Settings::Save(SettingsPath);
@@ -1207,12 +1380,23 @@ void RenderSpecializationsSettingsPopup()
 			}
 			ImGui::EndMenu();
 		}
-
-		if (ImGui::Checkbox("Sort by Class Damage", &Settings::sortSpecDamage))
+		if (ImGui::BeginMenu("Sort"))
+		{
+			SortSpecMenu();
+			ImGui::EndMenu();
+		}
+		BarRepMenu();
+		if (ImGui::Checkbox("Bars Independent of Sort", &Settings::barRepIndependent)) {
+			Settings::Settings[BAR_REP_INDEPENDENT] = Settings::barRepIndependent;
+			Settings::Save(SettingsPath);
+		}
+		
+		if (ImGui::Checkbox("Class Damage", &Settings::sortSpecDamage))
 		{
 			Settings::Settings[SORT_SPEC_DAMAGE] = Settings::sortSpecDamage;
 			Settings::Save(SettingsPath);
 		}
+
 		if (ImGui::Checkbox("Damage vs Logged Players Only", &Settings::vsLoggedPlayersOnly))
 		{
 			Settings::Settings[VS_LOGGED_PLAYERS_ONLY] = Settings::vsLoggedPlayersOnly;
@@ -1262,6 +1446,16 @@ void RenderTeamStatsDisplayOptions()
 		Settings::Settings[SHOW_TEAM_DAMAGE] = Settings::showTeamDamage;
 		Settings::Save(SettingsPath);
 	}
+	if (ImGui::Checkbox("Team Outgoing Down Cont", &Settings::showTeamDownCont))
+	{
+		Settings::Settings[SHOW_TEAM_DOWN_CONT] = Settings::showTeamDownCont;
+		Settings::Save(SettingsPath);
+	}
+	if (ImGui::Checkbox("Team Outgoing Kill Cont", &Settings::showTeamKillCont))
+	{
+		Settings::Settings[SHOW_TEAM_KILL_CONT] = Settings::showTeamKillCont;
+		Settings::Save(SettingsPath);
+	}
 	if (ImGui::Checkbox("Team Outgoing Strike Damage", &Settings::showTeamStrikeDamage))
 	{
 		Settings::Settings[SHOW_TEAM_STRIKE] = Settings::showTeamStrikeDamage;
@@ -1301,32 +1495,42 @@ void RenderLogSelectionPopup(const std::deque<ParsedLog>& parsedLogs, int& curre
 		if (ImGui::BeginMenu("Display"))
 		{
 			if (!Settings::splitStatsWindow) {
-				if (ImGui::Checkbox("Show Log Name", &Settings::showLogName))
+				if (ImGui::Checkbox("Log Name", &Settings::showLogName))
 				{
 					Settings::Settings[SHOW_LOG_NAME] = Settings::showLogName;
 					Settings::Save(SettingsPath);
 				}
-				if (ImGui::Checkbox("Show Spec Bars", &Settings::showSpecBars))
-				{
-					Settings::Settings[SHOW_SPEC_BARS] = Settings::showSpecBars;
-					Settings::Save(SettingsPath);
-				}
-				if (ImGui::Checkbox("Short Class Names", &Settings::useShortClassNames))
+				if (ImGui::Checkbox("Short Names", &Settings::useShortClassNames))
 				{
 					Settings::Settings[USE_SHORT_CLASS_NAMES] = Settings::useShortClassNames;
 					Settings::Save(SettingsPath);
 				}
-				if (ImGui::Checkbox("Show Class Names", &Settings::showClassNames))
+				if (ImGui::Checkbox("Class Bars", &Settings::showSpecBars))
+				{
+					Settings::Settings[SHOW_SPEC_BARS] = Settings::showSpecBars;
+					Settings::Save(SettingsPath);
+				}
+				if (ImGui::Checkbox("Class Names", &Settings::showClassNames))
 				{
 					Settings::Settings[SHOW_CLASS_NAMES] = Settings::showClassNames;
 					Settings::Save(SettingsPath);
 				}
-				if (ImGui::Checkbox("Show Class Icons", &Settings::showClassIcons))
+				if (ImGui::Checkbox("Class Icons", &Settings::showClassIcons))
 				{
 					Settings::Settings[SHOW_CLASS_ICONS] = Settings::showClassIcons;
 					Settings::Save(SettingsPath);
 				}
-				if (ImGui::Checkbox("Show Class Outgoing Damage", &Settings::showSpecDamage))
+				if (ImGui::Checkbox("Class Outgoing Damage", &Settings::showSpecDamage))
+				{
+					Settings::Settings[SHOW_SPEC_DAMAGE] = Settings::showSpecDamage;
+					Settings::Save(SettingsPath);
+				}
+				if (ImGui::Checkbox("Class Down Cont", &Settings::showSpecDamage))
+				{
+					Settings::Settings[SHOW_SPEC_DAMAGE] = Settings::showSpecDamage;
+					Settings::Save(SettingsPath);
+				}
+				if (ImGui::Checkbox("Class Kill Cont", &Settings::showSpecDamage))
 				{
 					Settings::Settings[SHOW_SPEC_DAMAGE] = Settings::showSpecDamage;
 					Settings::Save(SettingsPath);
@@ -1334,7 +1538,7 @@ void RenderLogSelectionPopup(const std::deque<ParsedLog>& parsedLogs, int& curre
 				ImGui::Separator();
 			}
 			else {
-				if (ImGui::Checkbox("Show Spec Window", &Settings::showSpecBars))
+				if (ImGui::Checkbox("Split Class Window", &Settings::showSpecBars))
 				{
 					Settings::Settings[SHOW_SPEC_BARS] = Settings::showSpecBars;
 					Settings::Save(SettingsPath);
@@ -1381,12 +1585,17 @@ void RenderLogSelectionPopup(const std::deque<ParsedLog>& parsedLogs, int& curre
 			}
 			ImGui::EndMenu();
 		}
-
-		if (ImGui::Checkbox("Sort by Class Damage", &Settings::sortSpecDamage))
+		if (ImGui::BeginMenu("Sort"))
 		{
-			Settings::Settings[SORT_SPEC_DAMAGE] = Settings::sortSpecDamage;
+			SortSpecMenu();
+			ImGui::EndMenu();
+		}
+		BarRepMenu();
+		if (ImGui::Checkbox("Bars Independent of Sort", &Settings::barRepIndependent)) {
+			Settings::Settings[BAR_REP_INDEPENDENT] = Settings::barRepIndependent;
 			Settings::Save(SettingsPath);
 		}
+		
 		if (ImGui::Checkbox("Damage vs Logged Players Only", &Settings::vsLoggedPlayersOnly))
 		{
 			Settings::Settings[VS_LOGGED_PLAYERS_ONLY] = Settings::vsLoggedPlayersOnly;

@@ -6,6 +6,29 @@
 #include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
+struct BarStat {
+	std::string representation;
+	std::string primaryStat;
+	std::string secondaryStat;
+
+	// Default constructor
+	BarStat() = default;
+
+	// Constructor for initialization
+	BarStat(const std::string& rep, const std::string& primary, const std::string& secondary)
+		: representation(rep)
+		, primaryStat(primary)
+		, secondaryStat(secondary)
+	{}
+
+	// Constructor for const char* (useful for string literals)
+	BarStat(const char* rep, const char* primary, const char* secondary)
+		: representation(rep)
+		, primaryStat(primary)
+		, secondaryStat(secondary)
+	{}
+};
+
 extern const char* IS_ADDON_WIDGET_VISIBLE;
 extern const char* IS_ADDON_WINDOW_VISIBLE;
 extern const char* IS_ADDON_AGG_WINDOW_VISIBLE;
@@ -39,9 +62,13 @@ extern const char* SHOW_TEAM_DAMAGE;
 extern const char* SHOW_TEAM_STRIKE;
 extern const char* SHOW_TEAM_CONDI;
 extern const char* SHOW_TEAM_KDR;
+extern const char* SHOW_TEAM_DOWN_CONT;
+extern const char* SHOW_TEAM_KILL_CONT;
 // Spec Stats
 extern const char* SHOW_SPEC_DAMAGE;
 extern const char* SORT_SPEC_DAMAGE;
+extern const char* SHOW_SPEC_DOWN_CONT;
+extern const char* SHOW_SPEC_KILL_CONT;
 // Window Style
 extern const char* USE_TABBED_VIEW;
 extern const char* SHOW_SCROLL_BAR;
@@ -57,11 +84,19 @@ extern const char* WIDGET_HEIGHT;
 extern const char* WIDGET_WIDTH;
 extern const char* WIDGET_TEXT_VERTICAL_OFFSET;
 extern const char* WIDGET_TEXT_HORIZONTAL_OFFSET;
+// Sort
+extern const char* WINDOW_SORT;
+extern const char* BAR_REPRESENTATION;
+extern const char* BAR_REP_INDEPENDENT;
+
+extern const char* BAR_TEMPLATE;
+extern const char* BAR_STATS;
 
 namespace Settings
 {
 	extern std::mutex	Mutex;
 	extern json			Settings;
+	extern std::vector<BarStat> barStats;
 
 	/* Loads the settings. */
 	void Load(std::filesystem::path aPath);
@@ -104,9 +139,13 @@ namespace Settings
 	extern bool showTeamCondiDamage;
 	extern bool showTeamStrikeDamage;
 	extern bool showTeamKDR;
+	extern bool showTeamDownCont;
+	extern bool showTeamKillCont;
 	// Spec Stats
 	extern bool showSpecDamage;
 	extern bool sortSpecDamage;
+	extern bool showSpecDownCont;
+	extern bool showSpecKillCont;
 	// Window Style
 	extern bool showScrollBar;
 	extern bool useTabbedView;
@@ -123,6 +162,15 @@ namespace Settings
 	extern float widgetTextVerticalAlignOffset;
 	extern float widgetTextHorizontalAlignOffset;
 	extern bool showWidgetIcon;
+	// sort
+	extern std::string windowSort;
+	extern char windowSortC[256];
+	extern std::string barRepresentation;
+	extern char barRepresentationC[32];
+	extern bool barRepIndependent;
+
+	extern std::string barTemplate;
+	extern char barTemplateC[256];
 }
 
 #endif

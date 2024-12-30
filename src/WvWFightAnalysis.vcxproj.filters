@@ -22,6 +22,7 @@
     <ClCompile Include="evtc_parser.cpp" />
     <ClCompile Include="utils.cpp" />
     <ClCompile Include="gui.cpp" />
+    <ClCompile Include="BarTemplate.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="imgui\imstb_truetype.h">
@@ -50,6 +51,7 @@
     <ClInclude Include="evtc_parser.h" />
     <ClInclude Include="utils.h" />
     <ClInclude Include="gui.h" />
+    <ClInclude Include="BarTemplate.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="imgui">

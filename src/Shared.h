@@ -98,11 +98,12 @@ struct Agent {
     std::string team = "Unknown";
 };
 
-
 struct SpecStats {
     uint32_t count = 0;
     uint32_t totalKills = 0;
     uint32_t totalKillsVsPlayers = 0;
+    uint32_t totalDeaths = 0;
+    uint32_t totalDowned = 0;
     uint64_t totalDamage = 0;
     uint64_t totalStrikeDamage = 0;
     uint64_t totalCondiDamage = 0;

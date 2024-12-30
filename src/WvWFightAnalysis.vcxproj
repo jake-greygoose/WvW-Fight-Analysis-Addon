@@ -184,6 +184,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="BarTemplate.h" />
     <ClInclude Include="evtc_parser.h" />
     <ClInclude Include="gui.h" />
     <ClInclude Include="imgui\imconfig.h" />
@@ -200,6 +201,7 @@
     <ClInclude Include="utils.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="BarTemplate.cpp" />
     <ClCompile Include="entry.cpp" />
     <ClCompile Include="evtc_parser.cpp" />
     <ClCompile Include="gui.cpp" />

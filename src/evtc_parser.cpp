@@ -4,17 +4,10 @@
 #include "Shared.h"
 #include "utils.h"
 #include <zip.h>
-#include <thread>
-#include <chrono>
-#include <filesystem>
 #include <shlobj.h>
-#include <sstream>
 #include <unordered_map>
 #include <unordered_set>
-#include <cstring>
-#include <algorithm>
-#include <vector>
-#include <mutex>
+
 
 std::unordered_set<std::wstring> processedFiles;
 std::filesystem::file_time_type maxProcessedTime = std::filesystem::file_time_type::min();
@@ -485,14 +478,18 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 					auto& teamStats = result.teamStats[team];
 					if (stateChange == StateChange::ChangeDead) {
 						teamStats.totalDeaths++;
+						teamStats.eliteSpecStats[agent->eliteSpec].totalDeaths++;
 						if (teamStats.isPOVTeam && agent->subgroupNumber > 0) {
 							teamStats.squadStats.totalDeaths++;
+							teamStats.squadStats.eliteSpecStats[agent->eliteSpec].totalDeaths++;
 						}
 					}
 					else {
 						teamStats.totalDowned++;
+						teamStats.eliteSpecStats[agent->eliteSpec].totalDowned++;
 						if (teamStats.isPOVTeam && agent->subgroupNumber > 0) {
 							teamStats.squadStats.totalDowned++;
+							teamStats.squadStats.eliteSpecStats[agent->eliteSpec].totalDowned++;
 						}
 					}
 				}
