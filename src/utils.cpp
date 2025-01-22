@@ -168,8 +168,8 @@ void initMaps() {
 const std::vector<ProfessionColor> professionColorPair = {
     {
         "Guardian",
-        ImVec4(10 / 255.0f, 222 / 255.0f, 255 / 255.0f, 110 / 255.0f),  // Primary Color
-        ImVec4(10 / 255.0f, 222 / 255.0f, 255 / 255.0f, 54 / 255.0f)    // Secondary Color
+        ImVec4(10 / 255.0f, 222 / 255.0f, 255 / 255.0f, 110 / 255.0f),
+        ImVec4(10 / 255.0f, 222 / 255.0f, 255 / 255.0f, 54 / 255.0f)
     },
     {
         "Warrior",
@@ -457,4 +457,18 @@ std::filesystem::path getArcPath()
     std::filesystem::path boss_encounter_path = buffer;
 
     return boss_encounter_path;
+}
+
+void RegisterWindowForNexusEsc(BaseWindowSettings* window, const std::string& defaultName) {
+    if (window && window->useNexusEscClose) {
+        const std::string& identifier = window->getDisplayName(defaultName);
+        APIDefs->UI.RegisterCloseOnEscape(identifier.c_str(), &window->isEnabled);
+    }
+}
+
+void UnregisterWindowFromNexusEsc(BaseWindowSettings* window, const std::string& defaultName) {
+    if (window) {
+        const std::string& identifier = window->getDisplayName(defaultName);
+        APIDefs->UI.DeregisterCloseOnEscape(identifier.c_str());
+    }
 }

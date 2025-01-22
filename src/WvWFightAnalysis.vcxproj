@@ -234,6 +234,7 @@
     <Image Include="assets\death_icon.png" />
     <Image Include="assets\downed_24x24.png" />
     <Image Include="assets\downed_icon.png" />
+    <Image Include="assets\down_cont_icon.png" />
     <Image Include="assets\dragonhunter_16x16.png" />
     <Image Include="assets\druid_16x16.png" />
     <Image Include="assets\elementalist_16x16.png" />
@@ -244,6 +245,7 @@
     <Image Include="assets\herald_16x16.png" />
     <Image Include="assets\holosmith_16x16.png" />
     <Image Include="assets\home_icon.png" />
+    <Image Include="assets\kill_cont_icon.png" />
     <Image Include="assets\mechanist_16x16.png" />
     <Image Include="assets\mesmer_16x16.png" />
     <Image Include="assets\mirage_16x16.png" />

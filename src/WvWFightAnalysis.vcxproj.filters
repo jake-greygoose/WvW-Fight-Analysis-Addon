@@ -218,5 +218,11 @@
     <Image Include="assets\strike_damage_icon.png">
       <Filter>Assets</Filter>
     </Image>
+    <Image Include="assets\down_cont_icon.png">
+      <Filter>Assets</Filter>
+    </Image>
+    <Image Include="assets\kill_cont_icon.png">
+      <Filter>Assets</Filter>
+    </Image>
   </ItemGroup>
 </Project>

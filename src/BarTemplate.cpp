@@ -6,113 +6,212 @@
 std::vector<TemplateVariable> BarTemplateRenderer::variables_;
 std::vector<std::string> BarTemplateRenderer::textSegments_;
 
-void BarTemplateRenderer::ParseTemplate(const std::string& templateStr) {
-    // If template is empty, use a default
-    if (templateStr.empty()) {
-        ParseTemplate("@1 @2 @3 (@4)");
-        return;
+TemplateVariable::Type BarTemplateRenderer::GetVariableType(int number) {
+    switch (number) {
+    case 1: return TemplateVariable::Type::PlayerCount;
+    case 2: return TemplateVariable::Type::ClassIcon;
+    case 3: return TemplateVariable::Type::ClassName;
+    case 4: return TemplateVariable::Type::Damage;
+    case 5: return TemplateVariable::Type::DownCont;
+    case 6: return TemplateVariable::Type::KillCont;
+    case 7: return TemplateVariable::Type::Deaths;
+    case 8: return TemplateVariable::Type::Downs;
+    case 9: return TemplateVariable::Type::StrikeDamage;
+    case 10: return TemplateVariable::Type::CondiDamage;
+    default: return TemplateVariable::Type::Custom;
     }
+}
 
+void BarTemplateRenderer::ParseTemplate(const std::string& templateStr) {
     variables_.clear();
     textSegments_.clear();
 
-    // Always start with an empty text segment to maintain alignment
     textSegments_.push_back("");
 
-    std::regex varPattern("@([1-5])");
+    if (templateStr.empty()) {
+        ParseTemplate(BarTemplateDefaults::defaultTemplates.at("players"));
+        return;
+    }
+
+    std::regex varPattern("\\{([0-9]+)\\}");
     std::string::const_iterator searchStart(templateStr.cbegin());
     std::smatch match;
-    size_t lastPos = 0;
 
-    // If template doesn't start with a variable, add the initial text
-    if (!templateStr.empty() && templateStr[0] != '@') {
-        size_t firstVarPos = templateStr.find('@');
+    if (!templateStr.empty() && templateStr[0] != '{') {
+        size_t firstVarPos = templateStr.find('{');
         if (firstVarPos == std::string::npos) {
-            // No variables found, just text
             textSegments_[0] = templateStr;
             return;
         }
         textSegments_[0] = templateStr.substr(0, firstVarPos);
         searchStart = templateStr.cbegin() + firstVarPos;
-        lastPos = firstVarPos;
     }
 
     while (std::regex_search(searchStart, templateStr.cend(), match, varPattern)) {
-        // Add the variable
         int varNum = std::stoi(match[1]);
         TemplateVariable var;
-        switch (varNum) {
-        case 1: var.type = TemplateVariable::Type::PlayerCount; break;
-        case 2: var.type = TemplateVariable::Type::ClassIcon; break;
-        case 3: var.type = TemplateVariable::Type::ClassName; break;
-        case 4: var.type = TemplateVariable::Type::PrimaryStat; break;
-        case 5: var.type = TemplateVariable::Type::SecondaryStat; break;
-        default: continue;
-        }
+        var.type = GetVariableType(varNum);
         var.position = variables_.size();
         variables_.push_back(var);
 
-        // Add text segment after the variable (may be empty)
         size_t matchEnd = match.position() + match.length() + (searchStart - templateStr.cbegin());
-        size_t nextVarPos = templateStr.find('@', matchEnd);
+        size_t nextVarPos = templateStr.find('{', matchEnd);
+
         if (nextVarPos == std::string::npos) {
-            // No more variables, add remaining text
             textSegments_.push_back(templateStr.substr(matchEnd));
         }
         else {
             textSegments_.push_back(templateStr.substr(matchEnd, nextVarPos - matchEnd));
         }
 
-        // Update search position
         searchStart = match.suffix().first;
     }
 
-    // Add remaining text after last variable if not already added
     if (searchStart != templateStr.cend() && textSegments_.size() <= variables_.size()) {
         textSegments_.push_back(std::string(searchStart, templateStr.cend()));
     }
 
-    // If no variables were found in non-empty template, use default
     if (variables_.empty() && !templateStr.empty()) {
-        ParseTemplate("@1 @2 @3 (@4)");
+        ParseTemplate(BarTemplateDefaults::defaultTemplates.at("players"));
     }
+}
+
+std::string BarTemplateRenderer::FormatStatValue(
+    const TemplateVariable::Type& type,
+    const SpecStats& stats,
+    bool vsLoggedPlayersOnly
+) {
+    switch (type) {
+    case TemplateVariable::Type::Damage:
+        return formatDamage(vsLoggedPlayersOnly ? stats.totalDamageVsPlayers : stats.totalDamage);
+    case TemplateVariable::Type::DownCont:
+        return formatDamage(vsLoggedPlayersOnly ?
+            stats.totalDownedContributionVsPlayers : stats.totalDownedContribution);
+    case TemplateVariable::Type::KillCont:
+        return formatDamage(vsLoggedPlayersOnly ?
+            stats.totalKillContributionVsPlayers : stats.totalKillContribution);
+    case TemplateVariable::Type::Deaths:
+        return std::to_string(stats.totalDeaths);
+    case TemplateVariable::Type::Downs:
+        return std::to_string(stats.totalDowned);
+    case TemplateVariable::Type::StrikeDamage:
+        return formatDamage(vsLoggedPlayersOnly ?
+            stats.totalStrikeDamageVsPlayers : stats.totalStrikeDamage);
+    case TemplateVariable::Type::CondiDamage:
+        return formatDamage(vsLoggedPlayersOnly ?
+            stats.totalCondiDamageVsPlayers : stats.totalCondiDamage);
+    default:
+        return "0";
+    }
+}
+
+std::string BarTemplateRenderer::GetTemplateForSort(
+    const std::string& sortType,
+    const std::string& customTemplate
+) {
+    if (!customTemplate.empty()) {
+        return customTemplate;
+    }
+
+    auto it = BarTemplateDefaults::defaultTemplates.find(sortType);
+    if (it != BarTemplateDefaults::defaultTemplates.end()) {
+        return it->second;
+    }
+
+    return BarTemplateDefaults::defaultTemplates.at("players");
+}
+
+void BarTemplateRenderer::RenderTooltipHeader(const std::string& eliteSpec) {
+
+    ImVec4 profColor = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+    std::string professionName = "Unknown";
+    auto profIt = eliteSpecToProfession.find(eliteSpec);
+    if (profIt != eliteSpecToProfession.end()) {
+        professionName = profIt->second;
+        auto colorIt = std::find_if(professionColorPair.begin(), professionColorPair.end(),
+            [&](const ProfessionColor& pc) { return pc.name == professionName; });
+        if (colorIt != professionColorPair.end()) {
+            profColor = colorIt->primaryColor;
+        }
+    }
+
+    ImGui::PushStyleColor(ImGuiCol_Text, profColor);
+    ImGui::Text("%s", eliteSpec.c_str());
+    ImGui::PopStyleColor();
+    ImGui::Separator();
+}
+
+void BarTemplateRenderer::RenderTooltipStats(
+    const SpecStats& stats,
+    bool vsLoggedPlayersOnly,
+    int playerCount
+) {
+    ImGui::Text("Players: %d", playerCount);
+    ImGui::Text("Damage: %s", formatDamage(vsLoggedPlayersOnly ?
+        stats.totalDamageVsPlayers : stats.totalDamage).c_str());
+    ImGui::Text("Down Contribution: %s", formatDamage(vsLoggedPlayersOnly ?
+        stats.totalDownedContributionVsPlayers : stats.totalDownedContribution).c_str());
+    ImGui::Text("Kill Contribution: %s", formatDamage(vsLoggedPlayersOnly ?
+        stats.totalKillContributionVsPlayers : stats.totalKillContribution).c_str());
+    ImGui::Text("Deaths: %d", stats.totalDeaths);
+    ImGui::Text("Downs: %d", stats.totalDowned);
+    ImGui::Text("Strike Damage: %s", formatDamage(vsLoggedPlayersOnly ?
+        stats.totalStrikeDamageVsPlayers : stats.totalStrikeDamage).c_str());
+    ImGui::Text("Condition Damage: %s", formatDamage(vsLoggedPlayersOnly ?
+        stats.totalCondiDamageVsPlayers : stats.totalCondiDamage).c_str());
 }
 
 void BarTemplateRenderer::RenderTemplate(
     int playerCount,
     const std::string& eliteSpec,
     bool useShortNames,
-    uint64_t primaryValue,
-    uint64_t secondaryValue,
+    const SpecStats& stats,
+    bool vsLoggedPlayersOnly,
+    const std::string& sortType,
     HINSTANCE hSelf,
-    float fontSize
+    float fontSize,
+    bool showTooltips
 ) {
-    // Store the cursor position at the start of the bar
-    float startX = ImGui::GetCursorPosX();
+    ImVec2 startPos = ImGui::GetCursorPos();
+    ImVec2 startScreenPos = ImGui::GetCursorScreenPos();
 
+    // Create invisible button for tooltip
+    float totalWidth = ImGui::GetContentRegionAvail().x;
+    float totalHeight = ImGui::GetTextLineHeight() + 4.0f;
+    ImGui::InvisibleButton("##tooltipArea", ImVec2(totalWidth, totalHeight));
+
+    // If hovered and tooltips enabled, show tooltip
+    if (showTooltips && ImGui::IsItemHovered()) {
+        ImGui::BeginTooltip();
+        RenderTooltipHeader(eliteSpec);
+        RenderTooltipStats(stats, vsLoggedPlayersOnly, playerCount);
+        ImGui::EndTooltip();
+    }
+
+    // Reset cursor position after invisible button
+    ImGui::SetCursorPos(startPos);
+
+    // Render the template content
     for (size_t i = 0; i < variables_.size() + 1; ++i) {
-        // Render text segment that comes before this variable (or final segment)
         if (i < textSegments_.size() && !textSegments_[i].empty()) {
             ImGui::Text("%s", textSegments_[i].c_str());
-            if (i < variables_.size()) {  // Only SameLine if there's a variable after
+            if (i < variables_.size()) {
                 ImGui::SameLine(0, 0);
             }
         }
 
-        // Render variable (if not at the end)
         if (i < variables_.size()) {
             RenderVariable(
                 variables_[i],
                 playerCount,
                 eliteSpec,
                 useShortNames,
-                primaryValue,
-                secondaryValue,
+                stats,
+                vsLoggedPlayersOnly,
                 hSelf,
                 fontSize
             );
 
-            // Add SameLine if there's more content coming (either a variable or non-empty text)
             if (i < variables_.size() - 1 ||
                 (i + 1 < textSegments_.size() && !textSegments_[i + 1].empty())) {
                 ImGui::SameLine(0, 0);
@@ -120,16 +219,16 @@ void BarTemplateRenderer::RenderTemplate(
         }
     }
 
-    // Move to next line for the next bar
     ImGui::NewLine();
 }
+
 void BarTemplateRenderer::RenderVariable(
     const TemplateVariable& var,
     int playerCount,
     const std::string& eliteSpec,
     bool useShortNames,
-    uint64_t primaryValue,
-    uint64_t secondaryValue,
+    const SpecStats& stats,
+    bool vsLoggedPlayersOnly,
     HINSTANCE hSelf,
     float fontSize
 ) {
@@ -139,48 +238,35 @@ void BarTemplateRenderer::RenderVariable(
         break;
 
     case TemplateVariable::Type::ClassIcon:
-        if (Settings::showClassIcons) {
-            float icon_size = fontSize;
-            int resourceId = 0;
-            Texture** texturePtrPtr = getTextureInfo(eliteSpec, &resourceId);
+    {
+        float icon_size = fontSize;
+        int resourceId = 0;
+        Texture** texturePtrPtr = getTextureInfo(eliteSpec, &resourceId);
 
-            if (texturePtrPtr && *texturePtrPtr && (*texturePtrPtr)->Resource) {
-                ImGui::Image((*texturePtrPtr)->Resource, ImVec2(icon_size, icon_size));
-            }
-            else {
-                if (resourceId != 0 && texturePtrPtr) {
-                    *texturePtrPtr = APIDefs->Textures.GetOrCreateFromResource((eliteSpec + "_ICON").c_str(), resourceId, hSelf);
-                    if (*texturePtrPtr && (*texturePtrPtr)->Resource) {
-                        ImGui::Image((*texturePtrPtr)->Resource, ImVec2(icon_size, icon_size));
-                    }
-                    else {
-                        if (eliteSpec.size() >= 2) {
-                            ImGui::Text("%c%c", eliteSpec[0], eliteSpec[1]);
-                        }
-                        else if (eliteSpec.size() == 1) {
-                            ImGui::Text("%c", eliteSpec[0]);
-                        }
-                        else {
-                            ImGui::Text("??");
-                        }
-                    }
+        if (texturePtrPtr && *texturePtrPtr && (*texturePtrPtr)->Resource) {
+            ImGui::Image((*texturePtrPtr)->Resource, ImVec2(icon_size, icon_size));
+        }
+        else {
+            if (resourceId != 0 && texturePtrPtr) {
+                *texturePtrPtr = APIDefs->Textures.GetOrCreateFromResource(
+                    (eliteSpec + "_ICON").c_str(), resourceId, hSelf
+                );
+                if (*texturePtrPtr && (*texturePtrPtr)->Resource) {
+                    ImGui::Image((*texturePtrPtr)->Resource, ImVec2(icon_size, icon_size));
                 }
                 else {
-                    if (eliteSpec.size() >= 2) {
-                        ImGui::Text("%c%c", eliteSpec[0], eliteSpec[1]);
-                    }
-                    else if (eliteSpec.size() == 1) {
-                        ImGui::Text("%c", eliteSpec[0]);
-                    }
-                    else {
-                        ImGui::Text("??");
-                    }
+                    ImGui::Text("%s", eliteSpec.substr(0, 2).c_str());
                 }
             }
+            else {
+                ImGui::Text("%s", eliteSpec.substr(0, 2).c_str());
+            }
         }
-        break;
+    }
+    break;
 
     case TemplateVariable::Type::ClassName:
+    {
         if (useShortNames) {
             std::string shortClassName = "Unk";
             auto clnIt = eliteSpecShortNames.find(eliteSpec);
@@ -192,18 +278,13 @@ void BarTemplateRenderer::RenderVariable(
         else {
             ImGui::Text("%s", eliteSpec.c_str());
         }
-        break;
+    }
+    break;
 
-    case TemplateVariable::Type::PrimaryStat:
-        ImGui::Text("%s", formatDamage(primaryValue).c_str());
-        break;
-
-    case TemplateVariable::Type::SecondaryStat:
-        if (secondaryValue > 0 && secondaryValue <= primaryValue) {
-            std::string formattedValue = formatDamage(secondaryValue);
-            if (!formattedValue.empty()) {
-                ImGui::Text("%s", formattedValue.c_str());
-            }
+    default:
+        if (TemplateUtils::IsStat(var.type)) {
+            std::string value = FormatStatValue(var.type, stats, vsLoggedPlayersOnly);
+            ImGui::Text("%s", value.c_str());
         }
         break;
     }

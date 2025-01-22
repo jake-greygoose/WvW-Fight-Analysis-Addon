@@ -373,7 +373,6 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 	const size_t eventSize = sizeof(CombatEvent);
 	std::unordered_map<uint16_t, Agent*> agentsByInstid;
 
-	// First collect all events
 	std::vector<CombatEvent> allEvents;
 	allEvents.reserve(eventCount);
 
@@ -387,10 +386,8 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 		allEvents.push_back(event);
 	}
 
-	// Pre-process agent states for efficient sequence checking
 	auto agentStates = preProcessAgentStates(allEvents);
 
-	// Process all events for state changes and agent mapping
 	for (const auto& event : allEvents) {
 		earliestTime = std::min(earliestTime, event.time);
 		latestTime = std::max(latestTime, event.time);

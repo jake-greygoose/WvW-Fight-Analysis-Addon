@@ -66,6 +66,8 @@ extern Texture* Condi;
 extern Texture* Strike;
 extern Texture* Kdr;
 extern Texture* Home;
+extern Texture* Downcont;
+extern Texture* Killcont;
 
 
 extern std::atomic<bool> initialParsingComplete;
@@ -105,6 +107,8 @@ struct SpecStats {
     uint32_t totalDeaths = 0;
     uint32_t totalDowned = 0;
     uint64_t totalDamage = 0;
+    uint64_t totalStrips = 0;
+    uint64_t totalStripsVsPlayers = 0;
     uint64_t totalStrikeDamage = 0;
     uint64_t totalCondiDamage = 0;
     uint64_t totalDamageVsPlayers = 0;
@@ -123,6 +127,8 @@ struct SquadStats {
     uint32_t totalKills = 0;
     uint32_t totalDeathsFromKillingBlows = 0;
     uint64_t totalDamage = 0;
+    uint64_t totalStrips = 0;
+    uint64_t totalStripsVsPlayers = 0;
     uint64_t totalStrikeDamage = 0;
     uint64_t totalCondiDamage = 0;
     uint64_t totalDamageVsPlayers = 0;
@@ -149,6 +155,8 @@ struct TeamStats {
     uint32_t totalKills = 0;
     uint32_t totalDeathsFromKillingBlows = 0;
     uint64_t totalDamage = 0;
+    uint64_t totalStrips = 0;
+    uint64_t totalStripsVsPlayers = 0;
     uint64_t totalStrikeDamage = 0;
     uint64_t totalCondiDamage = 0;
     uint64_t totalDamageVsPlayers = 0;
@@ -302,7 +310,7 @@ struct AgentState {
     std::vector<std::pair<uint64_t, uint64_t>> downIntervals;
     std::vector<std::pair<uint64_t, uint64_t>> deathIntervals;
     std::vector<std::pair<uint64_t, float>> healthUpdates;
-    std::vector<CombatEvent> relevantEvents;  // Store original events for precise sequencing
+    std::vector<CombatEvent> relevantEvents;
     bool currentlyDowned = false;
 };
 

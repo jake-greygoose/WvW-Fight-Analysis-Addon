@@ -8,6 +8,7 @@
 
 
 class Texture;
+class BaseWindowSettings;
 
 // Function declarations
 ImVec4 GetTeamColor(const std::string& teamName);
@@ -29,3 +30,6 @@ struct ProfessionColor {
     ImVec4 secondaryColor;
 };
 extern const std::vector<ProfessionColor> professionColorPair;
+
+void RegisterWindowForNexusEsc(BaseWindowSettings* window, const std::string& defaultName);
+void UnregisterWindowFromNexusEsc(BaseWindowSettings* window, const std::string& defaultName);

@@ -31,7 +31,7 @@ uint64_t getSortValue(const std::string& sortCriteria, const SpecStats& stats, b
 	else if (sortCriteria == "downs") {
 		return stats.totalDowned;
 	}
-	return 0; // Default to 0 if criteria not found
+	return 0;
 }
 
 uint64_t getBarValue(const std::string& representation, const SpecStats& stats, bool vsLogPlayers) {
@@ -61,7 +61,6 @@ std::pair<uint64_t, uint64_t> getSecondaryBarValues(
 	const SpecStats& stats,
 	bool vsLogPlayers
 ) {
-
 	if (barRep == "damage") {
 		uint64_t primaryValue = vsLogPlayers ? stats.totalDamageVsPlayers : stats.totalDamage;
 		uint64_t secondaryValue = vsLogPlayers ? stats.totalDownedContributionVsPlayers : stats.totalDownedContribution;
@@ -72,128 +71,758 @@ std::pair<uint64_t, uint64_t> getSecondaryBarValues(
 		uint64_t secondaryValue = vsLogPlayers ? stats.totalKillContributionVsPlayers : stats.totalKillContribution;
 		return { primaryValue, secondaryValue };
 	}
-
 	return { 0, 0 };
 }
 
 auto getSpecSortComparator(const std::string& sortCriteria, bool vsLogPlayers) {
-    return [sortCriteria, vsLogPlayers](
-        const std::pair<std::string, SpecStats>& a,
-        const std::pair<std::string, SpecStats>& b) {
-            // First try primary sort criteria
-            uint64_t valueA = getSortValue(sortCriteria, a.second, vsLogPlayers);
-            uint64_t valueB = getSortValue(sortCriteria, b.second, vsLogPlayers);
-            
-            if (valueA != valueB) {
-                return valueA > valueB;
-            }
-            
-            // If primary values are equal, sort by damage
-            uint64_t damageA = vsLogPlayers ? a.second.totalDamageVsPlayers : a.second.totalDamage;
-            uint64_t damageB = vsLogPlayers ? b.second.totalDamageVsPlayers : b.second.totalDamage;
-            
-            if (damageA != damageB) {
-                return damageA > damageB;
-            }
-            
-            // If damage is equal, sort by player count
-            if (a.second.count != b.second.count) {
-                return a.second.count > b.second.count;
-            }
-            
-            // If everything else is equal, sort alphabetically
-            return a.first < b.first;
-    };
+	return [sortCriteria, vsLogPlayers](
+		const std::pair<std::string, SpecStats>& a,
+		const std::pair<std::string, SpecStats>& b) {
+			uint64_t valueA = getSortValue(sortCriteria, a.second, vsLogPlayers);
+			uint64_t valueB = getSortValue(sortCriteria, b.second, vsLogPlayers);
+
+			if (valueA != valueB) {
+				return valueA > valueB;
+			}
+
+			uint64_t damageA = vsLogPlayers ? a.second.totalDamageVsPlayers : a.second.totalDamage;
+			uint64_t damageB = vsLogPlayers ? b.second.totalDamageVsPlayers : b.second.totalDamage;
+
+			if (damageA != damageB) {
+				return damageA > damageB;
+			}
+
+			if (a.second.count != b.second.count) {
+				return a.second.count > b.second.count;
+			}
+
+			return a.first < b.first;
+	};
 }
+
+struct TeamRenderInfo {
+	bool hasData;
+	const TeamStats* stats;
+	std::string name;
+	ImVec4 color;
+};
+
 
 
 void DrawBar(
-	float frac,
-	int count,
+	const std::vector<std::pair<std::string, SpecStats>>& sortedClasses,
+	size_t currentIndex,
 	const std::string& barRep,
 	const SpecStats& stats,
-	bool vsLogPlayers,
+	const MainWindowSettings* settings,
 	const ImVec4& primaryColor,
 	const ImVec4& secondaryColor,
 	const std::string& eliteSpec,
-	bool showDamage,
 	HINSTANCE hSelf
 ) {
-	// Get current cursor positions
 	ImVec2 cursor_pos = ImGui::GetCursorPos();
 	ImVec2 screen_pos = ImGui::GetCursorScreenPos();
+	float bar_height = ImGui::GetTextLineHeight() + 4.0f;
 
-	// Calculate bar dimensions
+	uint64_t maxValue = 0;
+	for (const auto& specPair : sortedClasses) {
+		uint64_t value;
+		if (settings->barRepIndependent) {
+			value = getBarValue(settings->barRepresentation, specPair.second, settings->vsLoggedPlayersOnly);
+		}
+		else {
+			value = getBarValue(settings->windowSort, specPair.second, settings->vsLoggedPlayersOnly);
+		}
+		maxValue = std::max(maxValue, value);
+	}
+
+	uint64_t currentValue;
+	if (settings->barRepIndependent) {
+		currentValue = getBarValue(settings->barRepresentation, stats, settings->vsLoggedPlayersOnly);
+	}
+	else {
+		currentValue = getBarValue(settings->windowSort, stats, settings->vsLoggedPlayersOnly);
+	}
+
+	float frac = (maxValue > 0) ? static_cast<float>(currentValue) / static_cast<float>(maxValue) : 0.0f;
 	float bar_width = ImGui::GetContentRegionAvail().x * frac;
-	float bar_height = ImGui::GetTextLineHeight() + 4.0f; // Slight padding
 
-	// Draw the primary bar
 	ImGui::GetWindowDrawList()->AddRectFilled(
 		screen_pos,
 		ImVec2(screen_pos.x + bar_width, screen_pos.y + bar_height),
 		ImGui::ColorConvertFloat4ToU32(primaryColor)
 	);
 
-	// Get values for primary and secondary bars
-	auto [primaryValue, secondaryValue] = getSecondaryBarValues(barRep, stats, vsLogPlayers);
+	std::string effectiveRep = settings->barRepIndependent ?
+		settings->barRepresentation : settings->windowSort;
 
-	// Draw the secondary bar if applicable
-	if (primaryValue > 0 && secondaryValue > 0 && secondaryValue <= primaryValue) {
-		float secondary_frac = static_cast<float>(secondaryValue) / static_cast<float>(primaryValue);
-		secondary_frac = std::clamp(secondary_frac, 0.0f, 1.0f);
-		float secondary_width = bar_width * secondary_frac;
+	auto secondaryStatIt = MainWindowSettings::secondaryStats.find(effectiveRep);
+	if (secondaryStatIt != MainWindowSettings::secondaryStats.end() &&
+		secondaryStatIt->second.enabled) {
+		const auto& secondaryRelation = secondaryStatIt->second;
+		uint64_t primaryValue = getBarValue(effectiveRep, stats, settings->vsLoggedPlayersOnly);
+		uint64_t secondaryValue = getBarValue(secondaryRelation.secondaryStat,
+			stats,
+			settings->vsLoggedPlayersOnly);
 
-		ImGui::GetWindowDrawList()->AddRectFilled(
-			screen_pos,
-			ImVec2(screen_pos.x + secondary_width, screen_pos.y + bar_height),
-			ImGui::ColorConvertFloat4ToU32(secondaryColor)
-		);
+		if (primaryValue > 0 && secondaryValue > 0) {
+			float secondary_frac = static_cast<float>(secondaryValue) /
+				static_cast<float>(primaryValue);
+
+			secondary_frac = std::clamp(secondary_frac, 0.0f, secondaryRelation.maxRatio);
+			float secondary_width = bar_width * secondary_frac;
+
+			ImGui::GetWindowDrawList()->AddRectFilled(
+				screen_pos,
+				ImVec2(screen_pos.x + secondary_width, screen_pos.y + bar_height),
+				ImGui::ColorConvertFloat4ToU32(secondaryColor)
+			);
+		}
 	}
 
-	// Set cursor position for text
 	ImGui::SetCursorPos(ImVec2(cursor_pos.x + 5.0f, cursor_pos.y + 2.0f));
 
-	// Render the template
-	BarTemplateRenderer::RenderTemplate(
-		count,
-		eliteSpec,
-		Settings::useShortClassNames,
-		primaryValue,
-		secondaryValue,
-		hSelf,
-		ImGui::GetFontSize()
+	auto templateIt = settings->sortTemplates.find(settings->windowSort);
+	std::string currentTemplate = (templateIt != settings->sortTemplates.end()) ?
+		templateIt->second : "";
+
+	std::string template_to_use = BarTemplateRenderer::GetTemplateForSort(
+		settings->windowSort,
+		currentTemplate
 	);
 
-	// Add tooltip for more detailed information
-	if (ImGui::IsItemHovered())
-	{
-		std::string tooltip;
-		if (barRep == "damage") {
-			tooltip = "Total Damage: " + std::to_string(primaryValue);
-			if (secondaryValue > 0) {
-				tooltip += "\nDowned Contribution: " + std::to_string(secondaryValue) +
-					" (" + std::to_string(static_cast<int>((static_cast<float>(secondaryValue) /
-						static_cast<float>(primaryValue)) * 100.0f)) + "%)";
-			}
-		}
-		ImGui::SetTooltip("%s", tooltip.c_str());
-	}
+	BarTemplateRenderer::ParseTemplate(template_to_use);
+	BarTemplateRenderer::RenderTemplate(
+		stats.count,
+		eliteSpec,
+		settings->useShortClassNames,
+		stats,
+		settings->vsLoggedPlayersOnly,
+		settings->windowSort,
+		hSelf,
+		ImGui::GetFontSize(),
+		settings->showSpecTooltips
+	);
 
-	// Move cursor below the bar for the next item
 	ImGui::SetCursorPosY(cursor_pos.y + bar_height + 2.0f);
 }
 
-void RenderSpecializationBars(const TeamStats& teamData, int teamIndex, HINSTANCE hSelf) {
-	// Determine if squad-specific stats should be used
-	bool useSquadStats = Settings::squadPlayersOnly && teamData.isPOVTeam;
-	bool vsLogPlayers = Settings::vsLoggedPlayersOnly;
-	bool showDamage = Settings::showSpecDamage;
+void RenderTeamData(const TeamStats& teamData, const MainWindowSettings* settings, HINSTANCE hSelf)
+{
+	ImGuiStyle& style = ImGui::GetStyle();
+	float sz = ImGui::GetFontSize();
 
-	// Select the appropriate set of elite specialization stats
+	ImGui::Spacing();
+
+	bool useSquadStats = settings->squadPlayersOnly && teamData.isPOVTeam;
+
+	// Total Players Display
+	uint32_t totalPlayersToDisplay = useSquadStats ? teamData.squadStats.totalPlayers : teamData.totalPlayers;
+
+	if (settings->showTeamTotalPlayers) {
+		if (settings->showClassIcons) {
+			if (Squad && Squad->Resource) {
+				ImGui::Image(Squad->Resource, ImVec2(sz, sz));
+				ImGui::SameLine(0, 5);
+			}
+			else {
+				Squad = APIDefs->Textures.GetOrCreateFromResource("SQUAD_ICON", SQUAD, hSelf);
+			}
+		}
+		if (settings->showClassNames) {
+			ImGui::Text("Total:  %d", totalPlayersToDisplay);
+		}
+		else {
+			ImGui::Text("%d", totalPlayersToDisplay);
+		}
+	}
+
+	// K/D Ratio Display
+	uint32_t totalKillsToDisplay = useSquadStats ? teamData.squadStats.totalKills : teamData.totalKills;
+	uint32_t totalDeathsfromKillingBlowsToDisplay = useSquadStats ?
+		teamData.squadStats.totalDeathsFromKillingBlows : teamData.totalDeathsFromKillingBlows;
+	double kdRatioToDisplay = useSquadStats ? teamData.squadStats.getKillDeathRatio() : teamData.getKillDeathRatio();
+	std::string kdString = (std::ostringstream() << totalKillsToDisplay << "/" <<
+		totalDeathsfromKillingBlowsToDisplay << " (" << std::fixed << std::setprecision(2) <<
+		kdRatioToDisplay << ")").str();
+
+	if (settings->showTeamKDR) {
+		if (settings->showClassIcons) {
+			if (Kdr && Kdr->Resource) {
+				ImGui::Image(Kdr->Resource, ImVec2(sz, sz));
+				ImGui::SameLine(0, 5);
+			}
+			else {
+				Kdr = APIDefs->Textures.GetOrCreateFromResource("KDR_ICON", KDR, hSelf);
+			}
+		}
+		if (settings->showClassNames) {
+			ImGui::Text("K/D: %s", kdString.c_str());
+		}
+		else {
+			ImGui::Text("%s", kdString.c_str());
+		}
+	}
+
+	// Deaths Display
+	uint32_t totalDeathsToDisplay = useSquadStats ? teamData.squadStats.totalDeaths : teamData.totalDeaths;
+
+	if (settings->showTeamDeaths) {
+		if (settings->showClassIcons) {
+			if (Death && Death->Resource) {
+				ImGui::Image(Death->Resource, ImVec2(sz, sz));
+				ImGui::SameLine(0, 5);
+			}
+			else {
+				Death = APIDefs->Textures.GetOrCreateFromResource("DEATH_ICON", DEATH, hSelf);
+			}
+		}
+		if (settings->showClassNames) {
+			ImGui::Text("Deaths: %d", totalDeathsToDisplay);
+		}
+		else {
+			ImGui::Text("%d", totalDeathsToDisplay);
+		}
+	}
+
+	// Downs Display
+	uint32_t totalDownedToDisplay = useSquadStats ? teamData.squadStats.totalDowned : teamData.totalDowned;
+
+	if (settings->showTeamDowned) {
+		if (settings->showClassIcons) {
+			if (Downed && Downed->Resource) {
+				ImGui::Image(Downed->Resource, ImVec2(sz, sz));
+				ImGui::SameLine(0, 5);
+			}
+			else {
+				Downed = APIDefs->Textures.GetOrCreateFromResource("DOWNED_ICON", DOWNED, hSelf);
+			}
+		}
+		if (settings->showClassNames) {
+			ImGui::Text("Downs:  %d", totalDownedToDisplay);
+		}
+		else {
+			ImGui::Text("%d", totalDownedToDisplay);
+		}
+	}
+
+	// Damage Display
+	uint64_t totalDamageToDisplay = 0;
+	if (settings->vsLoggedPlayersOnly) {
+		totalDamageToDisplay = useSquadStats ?
+			teamData.squadStats.totalDamageVsPlayers : teamData.totalDamageVsPlayers;
+	}
+	else {
+		totalDamageToDisplay = useSquadStats ?
+			teamData.squadStats.totalDamage : teamData.totalDamage;
+	}
+
+	if (settings->showTeamDamage) {
+		if (settings->showClassIcons) {
+			if (Damage && Damage->Resource) {
+				ImGui::Image(Damage->Resource, ImVec2(sz, sz));
+				ImGui::SameLine(0, 5);
+			}
+			else {
+				Damage = APIDefs->Textures.GetOrCreateFromResource("DAMAGE_ICON", DAMAGE, hSelf);
+			}
+		}
+
+		std::string formattedDamage = formatDamage(totalDamageToDisplay);
+
+		if (settings->showClassNames) {
+			ImGui::Text("Damage: %s", formattedDamage.c_str());
+		}
+		else {
+			ImGui::Text("%s", formattedDamage.c_str());
+		}
+	}
+
+	// Down Contribution Display
+	uint64_t totalDownedContToDisplay = 0;
+	if (settings->vsLoggedPlayersOnly) {
+		totalDownedContToDisplay = useSquadStats ?
+			teamData.squadStats.totalDownedContributionVsPlayers : teamData.totalDownedContributionVsPlayers;
+	}
+	else {
+		totalDownedContToDisplay = useSquadStats ?
+			teamData.squadStats.totalDownedContribution : teamData.totalDownedContribution;
+	}
+
+	if (settings->showTeamDownCont) {
+		if (settings->showClassIcons) {
+			if (Downcont && Downcont->Resource) {
+				ImGui::Image(Downcont->Resource, ImVec2(sz, sz));
+				ImGui::SameLine(0, 5);
+			}
+			else {
+				Downcont = APIDefs->Textures.GetOrCreateFromResource("DOWNCONT_ICON", DOWNCONT, hSelf);
+			}
+		}
+		std::string formattedDownCont = formatDamage(totalDownedContToDisplay);
+
+		if (settings->showClassNames) {
+			ImGui::Text("Down Cont: %s", formattedDownCont.c_str());
+		}
+		else {
+			ImGui::Text("%s", formattedDownCont.c_str());
+		}
+	}
+
+	// Kill Contribution Display
+	uint64_t totalKillContToDisplay = 0;
+	if (settings->vsLoggedPlayersOnly) {
+		totalKillContToDisplay = useSquadStats ?
+			teamData.squadStats.totalKillContributionVsPlayers : teamData.totalKillContributionVsPlayers;
+	}
+	else {
+		totalKillContToDisplay = useSquadStats ?
+			teamData.squadStats.totalKillContribution : teamData.totalKillContribution;
+	}
+
+	if (settings->showTeamKillCont) {
+		if (Killcont && Killcont->Resource) {
+			ImGui::Image(Killcont->Resource, ImVec2(sz, sz));
+			ImGui::SameLine(0, 5);
+		}
+		else {
+			Killcont = APIDefs->Textures.GetOrCreateFromResource("KILLCONT_ICON", KILLCONT, hSelf);
+		}
+		std::string formattedKillCont = formatDamage(totalKillContToDisplay);
+
+		if (settings->showClassNames) {
+			ImGui::Text("Kill Cont: %s", formattedKillCont.c_str());
+		}
+		else {
+			ImGui::Text("%s", formattedKillCont.c_str());
+		}
+	}
+
+	// Strike Damage Display
+	uint64_t totalStrikeDamageToDisplay = 0;
+	if (settings->vsLoggedPlayersOnly) {
+		totalStrikeDamageToDisplay = useSquadStats ?
+			teamData.squadStats.totalStrikeDamageVsPlayers : teamData.totalStrikeDamageVsPlayers;
+	}
+	else {
+		totalStrikeDamageToDisplay = useSquadStats ?
+			teamData.squadStats.totalStrikeDamage : teamData.totalStrikeDamage;
+	}
+
+	if (settings->showTeamStrikeDamage) {
+		if (settings->showClassIcons) {
+			if (Strike && Strike->Resource) {
+				ImGui::Image(Strike->Resource, ImVec2(sz, sz));
+				ImGui::SameLine(0, 5);
+			}
+			else {
+				Strike = APIDefs->Textures.GetOrCreateFromResource("STRIKE_ICON", STRIKE, hSelf);
+			}
+		}
+
+		std::string formattedStrikeDamage = formatDamage(totalStrikeDamageToDisplay);
+
+		if (settings->showClassNames) {
+			ImGui::Text("Strike: %s", formattedStrikeDamage.c_str());
+		}
+		else {
+			ImGui::Text("%s", formattedStrikeDamage.c_str());
+		}
+	}
+
+	// Condition Damage Display
+	uint64_t totalCondiDamageToDisplay = 0;
+	if (settings->vsLoggedPlayersOnly) {
+		totalCondiDamageToDisplay = useSquadStats ?
+			teamData.squadStats.totalCondiDamageVsPlayers : teamData.totalCondiDamageVsPlayers;
+	}
+	else {
+		totalCondiDamageToDisplay = useSquadStats ?
+			teamData.squadStats.totalCondiDamage : teamData.totalCondiDamage;
+	}
+
+	if (settings->showTeamCondiDamage) {
+		if (settings->showClassIcons) {
+			if (Condi && Condi->Resource) {
+				ImGui::Image(Condi->Resource, ImVec2(sz, sz));
+				ImGui::SameLine(0, 5);
+			}
+			else {
+				Condi = APIDefs->Textures.GetOrCreateFromResource("CONDI_ICON", CONDI, hSelf);
+			}
+		}
+
+		std::string formattedCondiDamage = formatDamage(totalCondiDamageToDisplay);
+
+		if (settings->showClassNames) {
+			ImGui::Text("Condi:  %s", formattedCondiDamage.c_str());
+		}
+		else {
+			ImGui::Text("%s", formattedCondiDamage.c_str());
+		}
+	}
+
+	if (settings->showSpecBars) {
+		ImGui::Separator();
+		RenderSpecializationBars(teamData, settings, hSelf);
+	}
+}
+
+void RenderTemplateSettings(MainWindowSettings* settings) {
+	if (ImGui::BeginMenu("Bar Templates")) {
+		const char* sortTypes[] = {
+			"players", "damage", "down cont", "kill cont", "deaths", "downs"
+		};
+		const char* sortLabels[] = {
+			"Players", "Damage", "Down Contribution", "Kill Contribution", "Deaths", "Downs"
+		};
+
+		const char* templateLegend =
+			"Template Variables:\n"
+			"{1}  - Player Count\n"
+			"{2}  - Class Icon\n"
+			"{3}  - Class Name\n"
+			"{4}  - Damage\n"
+			"{5}  - Down Contribution\n"
+			"{6}  - Kill Contribution\n"
+			"{7}  - Deaths\n"
+			"{8}  - Downs\n"
+			"{9}  - Strike Damage\n"
+			"{10} - Condition Damage";
+
+		for (int i = 0; i < IM_ARRAYSIZE(sortTypes); i++) {
+			if (ImGui::TreeNode(sortLabels[i])) {
+				const std::string& sortType = sortTypes[i];
+
+				std::string defaultTemplate = BarTemplateRenderer::GetTemplateForSort(sortType);
+
+				auto& currentTemplate = settings->sortTemplates[sortType];
+				if (currentTemplate.empty()) {
+					currentTemplate = defaultTemplate;
+				}
+
+				char tempBuffer[256];
+				strncpy(tempBuffer, currentTemplate.c_str(), sizeof(tempBuffer) - 1);
+
+				ImGui::Text("Current Template:");
+				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.8f);
+
+				if (ImGui::InputText(("##Template" + sortType).c_str(),
+					tempBuffer, sizeof(tempBuffer)))
+				{
+					currentTemplate = tempBuffer;
+					if (settings->windowSort == sortType) {
+						BarTemplateRenderer::ParseTemplate(currentTemplate);
+					}
+					Settings::Save(SettingsPath);
+				}
+
+				if (ImGui::IsItemHovered()) {
+					ImGui::SetTooltip("%s", templateLegend);
+				}
+
+				ImGui::Text("Default: %s", defaultTemplate.c_str());
+
+				if (ImGui::Button(("Reset to Default##" + sortType).c_str())) {
+					currentTemplate = defaultTemplate;
+					if (settings->windowSort == sortType) {
+						BarTemplateRenderer::ParseTemplate(currentTemplate);
+					}
+					Settings::Save(SettingsPath);
+				}
+
+				ImGui::TreePop();
+			}
+		}
+		ImGui::EndMenu();
+	}
+}
+
+void RenderMainWindowSettingsPopup(MainWindowSettings* settings) {
+	if (ImGui::BeginPopup("MainWindow Settings")) {
+		if (!settings->isWindowNameEditing) {
+			strncpy(settings->tempWindowName, settings->windowName.c_str(), sizeof(settings->tempWindowName) - 1);
+			settings->isWindowNameEditing = true;
+		}
+		ImGui::Text("Window Name:");
+		float windowWidth = ImGui::GetWindowWidth();
+		ImGui::SetNextItemWidth(windowWidth * 0.5f);
+		if (ImGui::InputText(" ##Window Name", settings->tempWindowName, sizeof(settings->tempWindowName))) {}
+
+		ImGui::SameLine();
+		if (ImGui::Button("Apply")) {
+			UnregisterWindowFromNexusEsc(settings, "WvW Fight Analysis");
+			settings->windowName = settings->tempWindowName;
+			settings->updateDisplayName("WvW Fight Analysis");
+			RegisterWindowForNexusEsc(settings, "WvW Fight Analysis");
+
+			Settings::Save(SettingsPath);
+		}
+
+		if (ImGui::BeginMenu("History")) {
+			for (int i = 0; i < parsedLogs.size(); ++i) {
+				const auto& log = parsedLogs[i];
+				std::string fnstr = log.filename.substr(0, log.filename.find_last_of('.'));
+				uint64_t durationMs = log.data.combatEndTime - log.data.combatStartTime;
+				auto duration = std::chrono::milliseconds(durationMs);
+				int minutes = std::chrono::duration_cast<std::chrono::minutes>(duration).count();
+				int seconds = std::chrono::duration_cast<std::chrono::seconds>(duration).count() % 60;
+				std::string displayName = fnstr + " (" + std::to_string(minutes) + "m " + std::to_string(seconds) + "s)";
+
+				if (ImGui::RadioButton(displayName.c_str(), &currentLogIndex, i)) {
+					// Selection handled by RadioButton
+				}
+			}
+			ImGui::EndMenu();
+		}
+
+		if (ImGui::BeginMenu("Display")) {
+			if (ImGui::Checkbox("log name", &settings->showLogName)) { Settings::Save(SettingsPath); }
+			if (ImGui::Checkbox("short spec names", &settings->useShortClassNames)) { Settings::Save(SettingsPath); }
+			if (ImGui::Checkbox("draw bars", &settings->showSpecBars)) { Settings::Save(SettingsPath); }
+			if (ImGui::Checkbox("tooltips", &settings->showSpecTooltips)) { Settings::Save(SettingsPath); }
+			ImGui::Separator();
+			// Team statistics display options
+			if (ImGui::BeginMenu("Team Stats")) {
+				if (ImGui::Checkbox("player count", &settings->showTeamTotalPlayers)) { Settings::Save(SettingsPath); }
+				if (ImGui::Checkbox("k/d ratio", &settings->showTeamKDR)) { Settings::Save(SettingsPath); }
+				if (ImGui::Checkbox("deaths", &settings->showTeamDeaths)) { Settings::Save(SettingsPath); }
+				if (ImGui::Checkbox("downs", &settings->showTeamDowned)) { Settings::Save(SettingsPath); }
+				if (ImGui::Checkbox("outgoing damage", &settings->showTeamDamage)) { Settings::Save(SettingsPath); }
+				if (ImGui::Checkbox("outgoing down cont", &settings->showTeamDownCont)) { Settings::Save(SettingsPath); }
+				if (ImGui::Checkbox("outgoing kill cont", &settings->showTeamKillCont)) { Settings::Save(SettingsPath); }
+				if (ImGui::Checkbox("outgoing strike damage", &settings->showTeamStrikeDamage)) { Settings::Save(SettingsPath); }
+				if (ImGui::Checkbox("outgoing condi damage", &settings->showTeamCondiDamage)) { Settings::Save(SettingsPath); }
+				ImGui::EndMenu();
+			}
+			if (ImGui::BeginMenu("Bar Configuration")) {
+				if (ImGui::Checkbox("Independent of sort", &settings->barRepIndependent)) {
+					Settings::Save(SettingsPath);
+				}
+				if (settings->barRepIndependent) {
+					if (ImGui::BeginMenu("Bar Display")) {
+						const char* displayOptions[] = {
+							"Players", "Damage", "Down Cont", "Kill Cont", "Deaths", "Downs"
+						};
+						const char* displayValues[] = {
+							"players", "damage", "down cont", "kill cont", "deaths", "downs"
+						};
+
+						for (int i = 0; i < IM_ARRAYSIZE(displayOptions); i++) {
+							bool isSelected = settings->barRepresentation == displayValues[i];
+							if (ImGui::RadioButton(displayOptions[i], isSelected)) {
+								settings->barRepresentation = displayValues[i];
+								Settings::Save(SettingsPath);
+							}
+						}
+
+						ImGui::EndMenu();
+					}
+				}
+				RenderTemplateSettings(settings);
+				ImGui::EndMenu();
+			}
+			ImGui::EndMenu();
+		}
+
+		if (ImGui::BeginMenu("Style")) {
+			if (ImGui::Checkbox("use tabbed view", &settings->useTabbedView)) { Settings::Save(SettingsPath); }
+			if (ImGui::Checkbox("show title", &settings->showTitle)) { Settings::Save(SettingsPath); }
+			if (ImGui::Checkbox("use window style for title bar", &settings->useWindowStyleForTitle)) {
+				Settings::Save(SettingsPath);
+			}
+			if (ImGui::Checkbox("scroll bar", &settings->showScrollBar)) { Settings::Save(SettingsPath); }
+			if (ImGui::Checkbox("background", &settings->showBackground)) { Settings::Save(SettingsPath); }
+			if (ImGui::Checkbox("allow focus", &settings->allowFocus)) { Settings::Save(SettingsPath); }
+			ImGui::EndMenu();
+		}
+
+		if (ImGui::BeginMenu("Sort")) {
+			const char* sortOptions[] = {
+				"Players", "Damage", "Down Cont", "Kill Cont", "Deaths", "Downs"
+			};
+			const char* sortValues[] = {
+				"players", "damage", "down cont", "kill cont", "deaths", "downs"
+			};
+
+			for (int i = 0; i < IM_ARRAYSIZE(sortOptions); i++) {
+				bool isSelected = settings->windowSort == sortValues[i];
+				if (ImGui::RadioButton(sortOptions[i], isSelected)) {
+					settings->windowSort = sortValues[i];
+					Settings::Save(SettingsPath);
+				}
+			}
+			ImGui::EndMenu();
+		}
+
+		
+		if (ImGui::Checkbox("damage vs logged players only", &settings->vsLoggedPlayersOnly)) {
+			Settings::Save(SettingsPath);
+		}
+
+		if (ImGui::Checkbox("show squad players only", &settings->squadPlayersOnly)) {
+			Settings::Save(SettingsPath);
+		}
+
+		ImGui::EndPopup();
+	}
+	else {
+		settings->isWindowNameEditing = false;
+	}
+}
+
+void RenderWidgetSettingsPopup(WidgetWindowSettings* settings) {
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5.0f, 5.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(5.0f, 5.0f));
+	if (ImGui::BeginPopup("Widget Settings")) {
+		if (!settings->isWindowNameEditing) {
+			strncpy(settings->tempWindowName, settings->windowName.c_str(), sizeof(settings->tempWindowName) - 1);
+			settings->isWindowNameEditing = true;
+		}
+		ImGui::Text("Widget Name:");
+		float windowWidth = ImGui::GetWindowWidth();
+		ImGui::SetNextItemWidth(windowWidth * 0.5f);
+		if (ImGui::InputText(" ##Widget Name", settings->tempWindowName, sizeof(settings->tempWindowName))) {}
+		ImGui::SameLine();
+		if (ImGui::Button("Apply")) {
+			UnregisterWindowFromNexusEsc(settings, "WvW Fight Analysis");
+			settings->windowName = settings->tempWindowName;
+			settings->updateDisplayName("WvW Fight Analysis");
+			RegisterWindowForNexusEsc(settings, "WvW Fight Analysis");
+
+			Settings::Save(SettingsPath);
+		}
+
+		if (ImGui::BeginMenu("History")) {
+			for (int i = 0; i < parsedLogs.size(); ++i) {
+				const auto& log = parsedLogs[i];
+				std::string fnstr = log.filename.substr(0, log.filename.find_last_of('.'));
+				uint64_t durationMs = log.data.combatEndTime - log.data.combatStartTime;
+				auto duration = std::chrono::milliseconds(durationMs);
+				int minutes = std::chrono::duration_cast<std::chrono::minutes>(duration).count();
+				int seconds = std::chrono::duration_cast<std::chrono::seconds>(duration).count() % 60;
+				std::string displayName = fnstr + " (" + std::to_string(minutes) + "m " + std::to_string(seconds) + "s)";
+
+				if (ImGui::RadioButton(displayName.c_str(), &currentLogIndex, i)) {
+					// Selection handled by RadioButton
+				}
+			}
+			ImGui::EndMenu();
+		}
+
+		if (ImGui::BeginMenu("Display Stats")) {
+			const char* statOptions[] = {
+				"Players", "K/D Ratio", "Deaths", "Downs", "Damage"
+			};
+			const char* statValues[] = {
+				"players", "kdr", "deaths", "downs", "damage"
+			};
+
+			for (int i = 0; i < IM_ARRAYSIZE(statOptions); i++) {
+				bool isSelected = settings->widgetStats == statValues[i];
+				if (ImGui::RadioButton(statOptions[i], isSelected)) {
+					settings->widgetStats = statValues[i];
+					Settings::Settings["widgetStats"] = settings->widgetStats;
+					Settings::Save(SettingsPath);
+				}
+			}
+			ImGui::EndMenu();
+		}
+
+		if (ImGui::BeginMenu("Style")) {
+			if (ImGui::Checkbox("show widget icon", &settings->showWidgetIcon)) {
+				Settings::Settings["ShowWidgetIcon"] = settings->showWidgetIcon;
+				Settings::Save(SettingsPath);
+			}
+
+			// Widget Height
+			ImGui::SetNextItemWidth(200.0f);
+			if (ImGui::SliderFloat("##Widget Height", &settings->widgetHeight, 0.0f, 900.0f)) {
+				settings->widgetHeight = std::clamp(settings->widgetHeight, 0.0f, 900.0f);
+				Settings::Settings["WidgetHeight"] = settings->widgetHeight;
+				Settings::Save(SettingsPath);
+			}
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(60.0f);
+			if (ImGui::InputFloat("Widget Height", &settings->widgetHeight, 1.0f)) {
+				settings->widgetHeight = std::clamp(settings->widgetHeight, 0.0f, 900.0f);
+				Settings::Settings["WidgetHeight"] = settings->widgetHeight;
+				Settings::Save(SettingsPath);
+			}
+
+			// Widget Width
+			ImGui::SetNextItemWidth(200.0f);
+			if (ImGui::SliderFloat("##Widget Width", &settings->widgetWidth, 0.0f, 900.0f)) {
+				settings->widgetWidth = std::clamp(settings->widgetWidth, 0.0f, 900.0f);
+				Settings::Settings["WidgetWidth"] = settings->widgetWidth;
+				Settings::Save(SettingsPath);
+			}
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(60.0f);
+			if (ImGui::InputFloat("Widget Width", &settings->widgetWidth, 1.0f)) {
+				settings->widgetWidth = std::clamp(settings->widgetWidth, 0.0f, 900.0f);
+				Settings::Settings["WidgetWidth"] = settings->widgetWidth;
+				Settings::Save(SettingsPath);
+			}
+
+			// Text Vertical Alignment
+			ImGui::SetNextItemWidth(200.0f);
+			if (ImGui::SliderFloat("##Widget Text Vertical Align", &settings->textVerticalAlignOffset, -50.0f, 50.0f)) {
+				settings->textVerticalAlignOffset = std::clamp(settings->textVerticalAlignOffset, -50.0f, 50.0f);
+				Settings::Settings["TextVerticalAlignOffset"] = settings->textVerticalAlignOffset;
+				Settings::Save(SettingsPath);
+			}
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(60.0f);
+			if (ImGui::InputFloat("Text Vertical Align", &settings->textVerticalAlignOffset, 1.0f)) {
+				settings->textVerticalAlignOffset = std::clamp(settings->textVerticalAlignOffset, -50.0f, 50.0f);
+				Settings::Settings["TextVerticalAlignOffset"] = settings->textVerticalAlignOffset;
+				Settings::Save(SettingsPath);
+			}
+
+			// Text Horizontal Alignment
+			ImGui::SetNextItemWidth(200.0f);
+			if (ImGui::SliderFloat("##Widget Text Horizontal Align", &settings->textHorizontalAlignOffset, -50.0f, 50.0f)) {
+				settings->textHorizontalAlignOffset = std::clamp(settings->textHorizontalAlignOffset, -50.0f, 50.0f);
+				Settings::Settings["TextHorizontalAlignOffset"] = settings->textHorizontalAlignOffset;
+				Settings::Save(SettingsPath);
+			}
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(60.0f);
+			if (ImGui::InputFloat("Text Horizontal Align", &settings->textHorizontalAlignOffset, 1.0f)) {
+				settings->textHorizontalAlignOffset = std::clamp(settings->textHorizontalAlignOffset, -50.0f, 50.0f);
+				Settings::Settings["TextHorizontalAlignOffset"] = settings->textHorizontalAlignOffset;
+				Settings::Save(SettingsPath);
+			}
+
+			ImGui::EndMenu();
+		}
+
+		if (ImGui::Checkbox("Damage vs Logged Players Only", &settings->vsLoggedPlayersOnly)) {
+			Settings::Settings["vsLoggedPlayersOnly"] = settings->vsLoggedPlayersOnly;
+			Settings::Save(SettingsPath);
+		}
+
+		if (ImGui::Checkbox("Show Squad Players Only", &settings->squadPlayersOnly)) {
+			Settings::Settings["squadPlayersOnly"] = settings->squadPlayersOnly;
+			Settings::Save(SettingsPath);
+		}
+
+		ImGui::EndPopup();
+	}
+	else {
+		settings->isWindowNameEditing = false;
+	}
+	ImGui::PopStyleVar(2);
+}
+
+void RenderSpecializationBars(const TeamStats& teamData, const MainWindowSettings* settings, HINSTANCE hSelf) {
+	bool useSquadStats = settings->squadPlayersOnly && teamData.isPOVTeam;
+	bool vsLogPlayers = settings->vsLoggedPlayersOnly;
+
 	const std::unordered_map<std::string, SpecStats>& eliteSpecStatsToDisplay =
 		useSquadStats ? teamData.squadStats.eliteSpecStats : teamData.eliteSpecStats;
 
-	// Copy the elite specs into a sortable vector
 	std::vector<std::pair<std::string, SpecStats>> sortedClasses;
 	sortedClasses.reserve(eliteSpecStatsToDisplay.size());
 
@@ -201,40 +830,14 @@ void RenderSpecializationBars(const TeamStats& teamData, int teamIndex, HINSTANC
 		sortedClasses.emplace_back(eliteSpec, stats);
 	}
 
-	// Sort based on the selected criteria and secondary criteria
 	std::sort(sortedClasses.begin(), sortedClasses.end(),
-		getSpecSortComparator(Settings::windowSort, vsLogPlayers));
+		getSpecSortComparator(settings->windowSort, vsLogPlayers));
 
-	// Get the representation to use for bars
-	const std::string& barRep = Settings::barRepIndependent ? Settings::barRepresentation : Settings::windowSort;
-
-	// Find the maximum value for bar scaling based on selected representation
-	uint64_t maxValue = 0;
-	if (!sortedClasses.empty()) {
-		maxValue = getBarValue(barRep, sortedClasses.front().second, vsLogPlayers);
-		for (const auto& specPair : sortedClasses) {
-			uint64_t value = getBarValue(barRep, specPair.second, vsLogPlayers);
-			maxValue = std::max(maxValue, value);
-		}
-	}
-
-	// Iterate through each specialization and render the bars
-	for (const auto& specPair : sortedClasses) {
+	for (size_t i = 0; i < sortedClasses.size(); ++i) {
+		const auto& specPair = sortedClasses[i];
 		const std::string& eliteSpec = specPair.first;
 		const SpecStats& stats = specPair.second;
-		int count = stats.count;
 
-		// Calculate the fraction for bar size based on selected representation
-		uint64_t barValue = getBarValue(barRep, stats, vsLogPlayers);
-		float frac = (maxValue > 0) ?
-			static_cast<float>(barValue) / static_cast<float>(maxValue) : 0.0f;
-
-		// Get total damage and downed contribution for display
-		uint64_t totalDamage = vsLogPlayers ? stats.totalDamageVsPlayers : stats.totalDamage;
-		uint64_t totalDownedContribution = vsLogPlayers ?
-			stats.totalDownedContributionVsPlayers : stats.totalDownedContribution;
-
-		// Get profession colors
 		std::string professionName = "Unknown";
 		auto it = eliteSpecToProfession.find(eliteSpec);
 		if (it != eliteSpecToProfession.end()) {
@@ -253,333 +856,308 @@ void RenderSpecializationBars(const TeamStats& teamData, int teamIndex, HINSTANC
 		}
 
 		DrawBar(
-			frac,
-			count,
-			barRep,
+			sortedClasses,
+			i,
+			settings->windowSort,
 			stats,
-			vsLogPlayers,
+			settings,
 			primaryColor,
 			secondaryColor,
 			eliteSpec,
-			showDamage,
 			hSelf
 		);
 	}
 }
 
+void RenderMainWindow(MainWindowSettings* settings, HINSTANCE hSelf) {
+	if (!settings->isEnabled) return;
 
-void RenderTeamData(int teamIndex, const TeamStats& teamData, HINSTANCE hSelf)
-{
-	ImGuiStyle& style = ImGui::GetStyle();
-	float sz = ImGui::GetFontSize();
-
-	ImGui::Spacing();
-
-	bool useSquadStats = Settings::squadPlayersOnly && teamData.isPOVTeam;
-
-	uint32_t totalPlayersToDisplay = useSquadStats ? teamData.squadStats.totalPlayers : teamData.totalPlayers;
-
-	if (Settings::showTeamTotalPlayers) {
-		if (Settings::showClassIcons) {
-			if (Squad && Squad->Resource) {
-				ImGui::Image(Squad->Resource, ImVec2(sz, sz));
-				ImGui::SameLine(0, 5);
-			}
-			else {
-				Squad = APIDefs->Textures.GetOrCreateFromResource("SQUAD_ICON", SQUAD, hSelf);
-			}
-		}
-		if (Settings::showClassNames) {
-			ImGui::Text("Total:  %d", totalPlayersToDisplay);
-		}
-		else {
-			ImGui::Text("%d", totalPlayersToDisplay);
-		}
+	static bool templateInitialized = false;
+	if (!templateInitialized) {
+		std::string currentTemplate = settings->sortTemplates[settings->windowSort];
+		std::string template_to_use = BarTemplateRenderer::GetTemplateForSort(
+			settings->windowSort,
+			currentTemplate
+		);
+		BarTemplateRenderer::ParseTemplate(template_to_use);
+		templateInitialized = true;
 	}
 
-	uint32_t totalKillsToDisplay = useSquadStats ? teamData.squadStats.totalKills : teamData.totalKills;
-	uint32_t totalDeathsfromKillingBlowsToDisplay = useSquadStats ? teamData.squadStats.totalDeathsFromKillingBlows : teamData.totalDeathsFromKillingBlows;
-	double kdRatioToDisplay = useSquadStats ? teamData.squadStats.getKillDeathRatio() : teamData.getKillDeathRatio();
-	std::string kdString = (std::ostringstream() << totalKillsToDisplay << "/" << totalDeathsfromKillingBlowsToDisplay << " (" << std::fixed << std::setprecision(2) << kdRatioToDisplay << ")").str();
+	std::string windowName = settings->getDisplayName("WvW Fight Analysis");
 
-	if (Settings::showTeamKDR) {
-		if (Settings::showClassIcons) {
-			if (Kdr && Kdr->Resource) {
-				ImGui::Image(Kdr->Resource, ImVec2(sz, sz));
-				ImGui::SameLine(0, 5);
-			}
-			else {
-				Kdr = APIDefs->Textures.GetOrCreateFromResource("KDR_ICON", KDR, hSelf);
-			}
-		}
-		if (Settings::showClassNames) {
-			ImGui::Text("K/D: %s", kdString.c_str());
+	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoCollapse;
+	if (!settings->showScrollBar) window_flags |= ImGuiWindowFlags_NoScrollbar;
+	if (!settings->showTitle) window_flags |= ImGuiWindowFlags_NoTitleBar;
+	if (!settings->allowFocus) {
+		window_flags |= ImGuiWindowFlags_NoFocusOnAppearing;
+		window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus;
+	}
+	if (!settings->showBackground) window_flags |= ImGuiWindowFlags_NoBackground;
+	if (settings->disableMoving) window_flags |= ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize;
+	if (settings->disableClicking) window_flags |= ImGuiWindowFlags_NoInputs;
+
+	ImGui::SetNextWindowPos(settings->position, ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(settings->size, ImGuiCond_FirstUseEver);
+
+	if (settings->useWindowStyleForTitle) {
+		ImGuiStyle& style = ImGui::GetStyle();
+		ImVec4 prevTitleBg = style.Colors[ImGuiCol_TitleBg];
+		ImVec4 prevTitleBgActive = style.Colors[ImGuiCol_TitleBgActive];
+		ImVec4 prevTitleBgCollapsed = style.Colors[ImGuiCol_TitleBgCollapsed];
+
+		if (settings->showBackground) {
+			style.Colors[ImGuiCol_TitleBg] = style.Colors[ImGuiCol_WindowBg];
+			style.Colors[ImGuiCol_TitleBgActive] = style.Colors[ImGuiCol_WindowBg];
+			style.Colors[ImGuiCol_TitleBgCollapsed] = style.Colors[ImGuiCol_WindowBg];
 		}
 		else {
-			ImGui::Text("%s", kdString.c_str());
+			ImVec4 transparentColor = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+			style.Colors[ImGuiCol_TitleBg] = transparentColor;
+			style.Colors[ImGuiCol_TitleBgActive] = transparentColor;
+			style.Colors[ImGuiCol_TitleBgCollapsed] = transparentColor;
 		}
-	}
 
-	// Total Deaths
-	uint32_t totalDeathsToDisplay = useSquadStats ? teamData.squadStats.totalDeaths : teamData.totalDeaths;
+		if (ImGui::Begin(windowName.c_str(), &settings->isEnabled, window_flags)) {
+			if (parsedLogs.empty()) {
+				ImGui::Text(initialParsingComplete ? "No logs parsed yet." : "Parsing logs...");
+				ImGui::End();
 
-	if (Settings::showTeamDeaths) {
-		if (Settings::showClassIcons) {
-			if (Death && Death->Resource) {
-				ImGui::Image(Death->Resource, ImVec2(sz, sz));
-				ImGui::SameLine(0, 5);
+				style.Colors[ImGuiCol_TitleBg] = prevTitleBg;
+				style.Colors[ImGuiCol_TitleBgActive] = prevTitleBgActive;
+				style.Colors[ImGuiCol_TitleBgCollapsed] = prevTitleBgCollapsed;
+				return;
+			}
+
+			const auto& currentLog = parsedLogs[currentLogIndex];
+			const auto& currentLogData = currentLog.data;
+
+			if (settings->showLogName) {
+				std::string displayName = generateLogDisplayName(currentLog.filename,
+					currentLog.data.combatStartTime, currentLog.data.combatEndTime);
+				ImGui::Text("%s", displayName.c_str());
+			}
+
+			const char* team_names[] = { "Red", "Blue", "Green" };
+			const ImVec4 team_colors[] = {
+				ImGui::ColorConvertU32ToFloat4(IM_COL32(0xFF, 0x44, 0x44, 0xFF)),
+				ImGui::ColorConvertU32ToFloat4(IM_COL32(0x33, 0xB5, 0xE5, 0xFF)),
+				ImGui::ColorConvertU32ToFloat4(IM_COL32(0x99, 0xCC, 0x00, 0xFF))
+			};
+
+			std::array<TeamRenderInfo, 3> teams;
+			int teamsWithData = 0;
+
+			for (int i = 0; i < 3; ++i) {
+				auto teamIt = currentLogData.teamStats.find(team_names[i]);
+				teams[i].hasData = teamIt != currentLogData.teamStats.end() &&
+					teamIt->second.totalPlayers >= Settings::teamPlayerThreshold;
+				if (teams[i].hasData) {
+					teamsWithData++;
+					teams[i].stats = &teamIt->second;
+					teams[i].name = team_names[i];
+					teams[i].color = team_colors[i];
+				}
+			}
+
+			if (teamsWithData == 0) {
+				ImGui::Text("No team data available meeting the player threshold.");
+			}
+			else if (settings->useTabbedView) {
+				if (ImGui::BeginTabBar("TeamTabBar", ImGuiTabBarFlags_None)) {
+					for (int i = 0; i < 3; ++i) {
+						if (teams[i].hasData) {
+							ImGui::PushStyleColor(ImGuiCol_Text, teams[i].color);
+							std::string tabName = teams[i].stats->isPOVTeam ?
+								"* " + teams[i].name : teams[i].name;
+
+							if (ImGui::BeginTabItem(tabName.c_str())) {
+								ImGui::PopStyleColor();
+								RenderTeamData(*teams[i].stats, settings, hSelf);
+								ImGui::EndTabItem();
+							}
+							else {
+								ImGui::PopStyleColor();
+							}
+						}
+					}
+					ImGui::EndTabBar();
+				}
 			}
 			else {
-				Death = APIDefs->Textures.GetOrCreateFromResource("DEATH_ICON", DEATH, hSelf);
-			}
-		}
-		if (Settings::showClassNames) {
-			ImGui::Text("Deaths: %d", totalDeathsToDisplay);
-		}
-		else {
-			ImGui::Text("%d", totalDeathsToDisplay);
-		}
-	}
+				if (ImGui::BeginTable("TeamTable", teamsWithData, ImGuiTableFlags_BordersInner)) {
+					for (const auto& team : teams) {
+						if (team.hasData) {
+							ImGui::TableSetupColumn(team.name.c_str(), ImGuiTableColumnFlags_WidthStretch);
+						}
+					}
 
-	// Total Downed
-	uint32_t totalDownedToDisplay = useSquadStats ? teamData.squadStats.totalDowned : teamData.totalDowned;
+					ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
+					int columnIndex = 0;
+					for (int i = 0; i < 3; ++i) {
+						if (teams[i].hasData) {
+							ImGui::TableSetColumnIndex(columnIndex++);
+							ImGui::PushStyleColor(ImGuiCol_Text, teams[i].color);
+							if (teams[i].stats->isPOVTeam) {
+								if (Home && Home->Resource) {
+									float sz = ImGui::GetFontSize() - 1;
+									ImGui::Image(Home->Resource, ImVec2(sz, sz));
+									ImGui::SameLine(0, 5);
+								}
+								else {
+									Home = APIDefs->Textures.GetOrCreateFromResource("HOME_ICON", HOME, hSelf);
+								}
+							}
+							ImGui::Text("%s Team", teams[i].name.c_str());
+							ImGui::PopStyleColor();
+						}
+					}
 
-	if (Settings::showTeamDowned) {
-		if (Settings::showClassIcons) {
-			if (Downed && Downed->Resource) {
-				ImGui::Image(Downed->Resource, ImVec2(sz, sz));
-				ImGui::SameLine(0, 5);
-			}
-			else {
-				Downed = APIDefs->Textures.GetOrCreateFromResource("DOWNED_ICON", DOWNED, hSelf);
-			}
-		}
-		if (Settings::showClassNames) {
-			ImGui::Text("Downs:  %d", totalDownedToDisplay);
-		}
-		else {
-			ImGui::Text("%d", totalDownedToDisplay);
-		}
-	}
+					ImGui::TableNextRow();
+					columnIndex = 0;
+					for (int i = 0; i < 3; ++i) {
+						if (teams[i].hasData) {
+							ImGui::TableSetColumnIndex(columnIndex++);
+							RenderTeamData(*teams[i].stats, settings, hSelf);
+						}
+					}
 
-	// Total Damage
-	uint64_t totalDamageToDisplay = 0;
-	if (Settings::vsLoggedPlayersOnly) {
-		totalDamageToDisplay = useSquadStats ? teamData.squadStats.totalDamageVsPlayers : teamData.totalDamageVsPlayers;
+					ImGui::EndTable();
+				}
+			}
+
+			if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup |
+				ImGuiHoveredFlags_ChildWindows) && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+				ImGui::OpenPopup("MainWindow Settings");
+			}
+
+			RenderMainWindowSettingsPopup(settings);
+
+			settings->position = ImGui::GetWindowPos();
+			settings->size = ImGui::GetWindowSize();
+
+			ImGui::End();
+		}
+
+		style.Colors[ImGuiCol_TitleBg] = prevTitleBg;
+		style.Colors[ImGuiCol_TitleBgActive] = prevTitleBgActive;
+		style.Colors[ImGuiCol_TitleBgCollapsed] = prevTitleBgCollapsed;
 	}
 	else {
-		totalDamageToDisplay = useSquadStats ? teamData.squadStats.totalDamage : teamData.totalDamage;
-	}
+		if (ImGui::Begin(windowName.c_str(), &settings->isEnabled, window_flags)) {
+			if (parsedLogs.empty()) {
+				ImGui::Text(initialParsingComplete ? "No logs parsed yet." : "Parsing logs...");
+				ImGui::End();
+				return;
+			}
 
-	if (Settings::showTeamDamage) {
-		if (Settings::showClassIcons) {
-			if (Damage && Damage->Resource) {
-				ImGui::Image(Damage->Resource, ImVec2(sz, sz));
-				ImGui::SameLine(0, 5);
+			const auto& currentLog = parsedLogs[currentLogIndex];
+			const auto& currentLogData = currentLog.data;
+
+			if (settings->showLogName) {
+				std::string displayName = generateLogDisplayName(currentLog.filename,
+					currentLog.data.combatStartTime, currentLog.data.combatEndTime);
+				ImGui::Text("%s", displayName.c_str());
+			}
+
+			const char* team_names[] = { "Red", "Blue", "Green" };
+			const ImVec4 team_colors[] = {
+				ImGui::ColorConvertU32ToFloat4(IM_COL32(0xFF, 0x44, 0x44, 0xFF)),
+				ImGui::ColorConvertU32ToFloat4(IM_COL32(0x33, 0xB5, 0xE5, 0xFF)),
+				ImGui::ColorConvertU32ToFloat4(IM_COL32(0x99, 0xCC, 0x00, 0xFF))
+			};
+
+			std::array<TeamRenderInfo, 3> teams;
+			int teamsWithData = 0;
+
+			for (int i = 0; i < 3; ++i) {
+				auto teamIt = currentLogData.teamStats.find(team_names[i]);
+				teams[i].hasData = teamIt != currentLogData.teamStats.end() &&
+					teamIt->second.totalPlayers >= Settings::teamPlayerThreshold;
+				if (teams[i].hasData) {
+					teamsWithData++;
+					teams[i].stats = &teamIt->second;
+					teams[i].name = team_names[i];
+					teams[i].color = team_colors[i];
+				}
+			}
+
+			if (teamsWithData == 0) {
+				ImGui::Text("No team data available meeting the player threshold.");
+			}
+			else if (settings->useTabbedView) {
+				if (ImGui::BeginTabBar("TeamTabBar", ImGuiTabBarFlags_None)) {
+					for (int i = 0; i < 3; ++i) {
+						if (teams[i].hasData) {
+							ImGui::PushStyleColor(ImGuiCol_Text, teams[i].color);
+							std::string tabName = teams[i].stats->isPOVTeam ?
+								"* " + teams[i].name : teams[i].name;
+
+							if (ImGui::BeginTabItem(tabName.c_str())) {
+								ImGui::PopStyleColor();
+								RenderTeamData(*teams[i].stats, settings, hSelf);
+								ImGui::EndTabItem();
+							}
+							else {
+								ImGui::PopStyleColor();
+							}
+						}
+					}
+					ImGui::EndTabBar();
+				}
 			}
 			else {
-				Damage = APIDefs->Textures.GetOrCreateFromResource("DAMAGE_ICON", DAMAGE, hSelf);
-			}
-		}
+				if (ImGui::BeginTable("TeamTable", teamsWithData, ImGuiTableFlags_BordersInner)) {
+					for (const auto& team : teams) {
+						if (team.hasData) {
+							ImGui::TableSetupColumn(team.name.c_str(), ImGuiTableColumnFlags_WidthStretch);
+						}
+					}
 
-		std::string formattedDamage = formatDamage(totalDamageToDisplay);
+					ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
+					int columnIndex = 0;
+					for (int i = 0; i < 3; ++i) {
+						if (teams[i].hasData) {
+							ImGui::TableSetColumnIndex(columnIndex++);
+							ImGui::PushStyleColor(ImGuiCol_Text, teams[i].color);
+							if (teams[i].stats->isPOVTeam) {
+								if (Home && Home->Resource) {
+									float sz = ImGui::GetFontSize() - 1;
+									ImGui::Image(Home->Resource, ImVec2(sz, sz));
+									ImGui::SameLine(0, 5);
+								}
+								else {
+									Home = APIDefs->Textures.GetOrCreateFromResource("HOME_ICON", HOME, hSelf);
+								}
+							}
+							ImGui::Text("%s Team", teams[i].name.c_str());
+							ImGui::PopStyleColor();
+						}
+					}
 
-		if (Settings::showClassNames) {
-			ImGui::Text("Damage: %s", formattedDamage.c_str());
-		}
-		else {
-			ImGui::Text("%s", formattedDamage.c_str());
-		}
-	}
+					ImGui::TableNextRow();
+					columnIndex = 0;
+					for (int i = 0; i < 3; ++i) {
+						if (teams[i].hasData) {
+							ImGui::TableSetColumnIndex(columnIndex++);
+							RenderTeamData(*teams[i].stats, settings, hSelf);
+						}
+					}
 
-	// Total Downed Contribution
-	uint64_t totalDownedContToDisplay = 0;
-	if (Settings::vsLoggedPlayersOnly) {
-		totalDownedContToDisplay = useSquadStats ? teamData.squadStats.totalDownedContributionVsPlayers : teamData.totalDownedContributionVsPlayers;
-	}
-	else {
-		totalDownedContToDisplay = useSquadStats ? teamData.squadStats.totalDownedContribution : teamData.totalDownedContribution;
-	}
-
-	if (Settings::showTeamDownCont) {
-		if (Settings::showClassIcons) {
-			// Add icon handling here if needed
-		}
-
-		std::string formattedDamage = formatDamage(totalDownedContToDisplay);
-
-		if (Settings::showClassNames) {
-			ImGui::Text("Down Cont: %s", formattedDamage.c_str());
-		}
-		else {
-			ImGui::Text("%s", formattedDamage.c_str());
-		}
-	}
-
-	// Total Kill Contribution
-	uint64_t totalKillContToDisplay = 0;
-	if (Settings::vsLoggedPlayersOnly) {
-		totalKillContToDisplay = useSquadStats ? teamData.squadStats.totalKillContributionVsPlayers : teamData.totalKillContributionVsPlayers;
-	}
-	else {
-		totalKillContToDisplay = useSquadStats ? teamData.squadStats.totalKillContribution : teamData.totalKillContribution;
-	}
-
-	if (Settings::showTeamKillCont) {
-		if (Settings::showClassIcons) {
-			// Add icon handling here if needed
-		}
-
-		std::string formattedDamage = formatDamage(totalKillContToDisplay);
-
-		if (Settings::showClassNames) {
-			ImGui::Text("Kill Cont: %s", formattedDamage.c_str());
-		}
-		else {
-			ImGui::Text("%s", formattedDamage.c_str());
-		}
-	}
-
-	// Total Strike Damage
-	uint64_t totalStrikeDamageToDisplay = 0;
-	if (Settings::vsLoggedPlayersOnly) {
-		totalStrikeDamageToDisplay = useSquadStats ? teamData.squadStats.totalStrikeDamageVsPlayers : teamData.totalStrikeDamageVsPlayers;
-	}
-	else {
-		totalStrikeDamageToDisplay = useSquadStats ? teamData.squadStats.totalStrikeDamage : teamData.totalStrikeDamage;
-	}
-
-	if (Settings::showTeamStrikeDamage) {
-		if (Settings::showClassIcons) {
-			if (Strike && Strike->Resource) {
-				ImGui::Image(Strike->Resource, ImVec2(sz, sz));
-				ImGui::SameLine(0, 5);
-			}
-			else {
-				Strike = APIDefs->Textures.GetOrCreateFromResource("STRIKE_ICON", STRIKE, hSelf);
-			}
-		}
-
-		std::string formattedDamage = formatDamage(totalStrikeDamageToDisplay);
-
-		if (Settings::showClassNames) {
-			ImGui::Text("Strike: %s", formattedDamage.c_str());
-		}
-		else {
-			ImGui::Text("%s", formattedDamage.c_str());
-		}
-	}
-
-	// Total Condition Damage
-	uint64_t totalCondiDamageToDisplay = 0;
-	if (Settings::vsLoggedPlayersOnly) {
-		totalCondiDamageToDisplay = useSquadStats ? teamData.squadStats.totalCondiDamageVsPlayers : teamData.totalCondiDamageVsPlayers;
-	}
-	else {
-		totalCondiDamageToDisplay = useSquadStats ? teamData.squadStats.totalCondiDamage : teamData.totalCondiDamage;
-	}
-
-	if (Settings::showTeamCondiDamage) {
-		if (Settings::showClassIcons) {
-			if (Condi && Condi->Resource) {
-				ImGui::Image(Condi->Resource, ImVec2(sz, sz));
-				ImGui::SameLine(0, 5);
-			}
-			else {
-				Condi = APIDefs->Textures.GetOrCreateFromResource("CONDI_ICON", CONDI, hSelf);
-			}
-		}
-
-		std::string formattedDamage = formatDamage(totalCondiDamageToDisplay);
-
-		if (Settings::showClassNames) {
-			ImGui::Text("Condi:  %s", formattedDamage.c_str());
-		}
-		else {
-			ImGui::Text("%s", formattedDamage.c_str());
-		}
-	}
-
-	// Render Specialization Bars
-	if (Settings::showSpecBars && !Settings::splitStatsWindow) {
-		ImGui::Separator();
-
-		bool vsLogPlayers = Settings::vsLoggedPlayersOnly;
-		bool showDamage = Settings::showSpecDamage;
-
-		const std::unordered_map<std::string, SpecStats>& eliteSpecStatsToDisplay = useSquadStats ?
-			teamData.squadStats.eliteSpecStats : teamData.eliteSpecStats;
-
-		std::vector<std::pair<std::string, SpecStats>> sortedClasses;
-		sortedClasses.reserve(eliteSpecStatsToDisplay.size());
-
-		for (const auto& [eliteSpec, stats] : eliteSpecStatsToDisplay) {
-			sortedClasses.emplace_back(eliteSpec, stats);
-		}
-
-		// Sort based on primary and secondary criteria
-		std::sort(sortedClasses.begin(), sortedClasses.end(),
-			getSpecSortComparator(Settings::windowSort, vsLogPlayers));
-
-		// Get the representation to use for bars
-		const std::string& barRep = Settings::barRepIndependent ? Settings::barRepresentation : Settings::windowSort;
-
-		// Find the maximum value for bar scaling based on selected representation
-		uint64_t maxValue = 0;
-		if (!sortedClasses.empty()) {
-			maxValue = getBarValue(barRep, sortedClasses.front().second, vsLogPlayers);
-			for (const auto& specPair : sortedClasses) {
-				uint64_t value = getBarValue(barRep, specPair.second, vsLogPlayers);
-				maxValue = std::max(maxValue, value);
-			}
-		}
-
-		// Render each class bar
-		for (const auto& specPair : sortedClasses) {
-			const std::string& eliteSpec = specPair.first;
-			const SpecStats& stats = specPair.second;
-			int count = stats.count;
-
-			// Calculate the fraction for bar size based on selected representation
-			uint64_t barValue = getBarValue(barRep, stats, vsLogPlayers);
-			float frac = (maxValue > 0) ?
-				static_cast<float>(barValue) / static_cast<float>(maxValue) : 0.0f;
-
-			// Get total damage for display
-			uint64_t totalDamage = vsLogPlayers ? stats.totalDamageVsPlayers : stats.totalDamage;
-			uint64_t totalDownedContribution = vsLogPlayers ?
-				stats.totalDownedContributionVsPlayers : stats.totalDownedContribution;
-
-			// Get profession colors
-			std::string professionName = "Unknown";
-			auto it = eliteSpecToProfession.find(eliteSpec);
-			if (it != eliteSpecToProfession.end()) {
-				professionName = it->second;
+					ImGui::EndTable();
+				}
 			}
 
-			ImVec4 primaryColor = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-			ImVec4 secondaryColor = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-
-			auto colorIt = std::find_if(professionColorPair.begin(), professionColorPair.end(),
-				[professionName](const ProfessionColor& pc) { return pc.name == professionName; });
-
-			if (colorIt != professionColorPair.end()) {
-				primaryColor = colorIt->primaryColor;
-				secondaryColor = colorIt->secondaryColor;
+			if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup |
+				ImGuiHoveredFlags_ChildWindows) && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+				ImGui::OpenPopup("MainWindow Settings");
 			}
 
-			DrawBar(
-				frac,
-				count,
-				barRep,
-				stats,
-				vsLogPlayers,
-				primaryColor,
-				secondaryColor,
-				eliteSpec,
-				showDamage,
-				hSelf
-			);
+			RenderMainWindowSettingsPopup(settings);
+
+			settings->position = ImGui::GetWindowPos();
+			settings->size = ImGui::GetWindowSize();
+
+			ImGui::End();
 		}
 	}
 }
@@ -590,33 +1168,35 @@ void RenderSimpleRatioBar(
 	const std::vector<ImVec4>& colors,
 	const ImVec2& size,
 	const std::vector<const char*>& texts,
-	ImTextureID statIcon)
-{
+	ImTextureID statIcon,
+	const WidgetWindowSettings* settings
+) {
 	ImDrawList* draw_list = ImGui::GetWindowDrawList();
 	const ImVec2 p = ImGui::GetCursorScreenPos();
 
 	size_t numTeams = counts.size();
-
 	float total = 0.0f;
-	for (float count : counts)
+	for (float count : counts) {
 		total += count;
+	}
 
 	std::vector<float> fractions(numTeams);
-	if (total == 0.0f)
-	{
+	if (total == 0.0f) {
 		float equalFrac = 1.0f / numTeams;
-		for (size_t i = 0; i < numTeams; ++i)
+		for (size_t i = 0; i < numTeams; ++i) {
 			fractions[i] = equalFrac;
+		}
 	}
-	else
-	{
-		for (size_t i = 0; i < numTeams; ++i)
+	else {
+		for (size_t i = 0; i < numTeams; ++i) {
 			fractions[i] = counts[i] / total;
+		}
 	}
 
 	std::vector<ImU32> colorsU32(numTeams);
-	for (size_t i = 0; i < numTeams; ++i)
+	for (size_t i = 0; i < numTeams; ++i) {
 		colorsU32[i] = ImGui::ColorConvertFloat4ToU32(colors[i]);
+	}
 
 	float sz = ImGui::GetFontSize();
 	float iconWidth = sz;
@@ -634,8 +1214,7 @@ void RenderSimpleRatioBar(
 	float iconAreaWidth = 0.0f;
 	float barX = x;
 
-	if (Settings::showWidgetIcon && statIcon)
-	{
+	if (settings->showWidgetIcon && statIcon) {
 		iconAreaWidth = leftPadding + iconWidth + rightPadding;
 		float iconX = x + leftPadding;
 		float iconY = y + (height - iconHeight) * 0.5f;
@@ -649,11 +1228,10 @@ void RenderSimpleRatioBar(
 		barX = x + iconAreaWidth + interPadding;
 	}
 
-	float barWidth = width - (iconAreaWidth + (Settings::showWidgetIcon ? interPadding : 0));
+	float barWidth = width - (iconAreaWidth + (settings->showWidgetIcon ? interPadding : 0));
 
 	float x_start = barX;
-	for (size_t i = 0; i < numTeams; ++i)
-	{
+	for (size_t i = 0; i < numTeams; ++i) {
 		float section_width = barWidth * fractions[i];
 		float x_end = x_start + section_width;
 
@@ -664,11 +1242,10 @@ void RenderSimpleRatioBar(
 		);
 
 		ImVec2 textSize = ImGui::CalcTextSize(texts[i]);
-		float text_center_x = x_start + (section_width - textSize.x) * 0.5f + Settings::widgetTextHorizontalAlignOffset;
-		float center_y = y + (height - textSize.y) * 0.5f + Settings::widgetTextVerticalAlignOffset;
+		float text_center_x = x_start + (section_width - textSize.x) * 0.5f + settings->textHorizontalAlignOffset;
+		float center_y = y + (height - textSize.y) * 0.5f + settings->textVerticalAlignOffset;
 
-		if (section_width >= textSize.x)
-		{
+		if (section_width >= textSize.x) {
 			draw_list->AddText(
 				ImVec2(text_center_x, center_y),
 				IM_COL32_WHITE,
@@ -688,379 +1265,191 @@ void RenderSimpleRatioBar(
 	ImGui::Dummy(size);
 }
 
-void ratioBarSetup(HINSTANCE hSelf)
-{
-	if (!Settings::IsAddonWidgetEnabled)
-		return;
+void RenderWidgetWindow(WidgetWindowSettings* settings, HINSTANCE hSelf) {
+	if (!settings->isEnabled) return;
 
-	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar |
-		ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize;
-	if (Settings::disableMovingWindow)
-	{
-		window_flags |= ImGuiWindowFlags_NoMove;
+	std::string windowName = settings->getDisplayName("Team Ratio Bar");
+
+	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar |
+		ImGuiWindowFlags_NoScrollbar |
+		ImGuiWindowFlags_NoCollapse |
+		ImGuiWindowFlags_AlwaysAutoResize;
+
+	if (!settings->allowFocus) {
+		window_flags |= ImGuiWindowFlags_NoFocusOnAppearing;
+		window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus;
 	}
-	if (Settings::disableClickingWindow)
-	{
-		window_flags |= ImGuiWindowFlags_NoInputs;
-	}
+	if (!settings->showBackground) window_flags |= ImGuiWindowFlags_NoBackground;
+	if (settings->disableMoving) window_flags |= ImGuiWindowFlags_NoMove;
+	if (settings->disableClicking) window_flags |= ImGuiWindowFlags_NoInputs;
+
+	// Set window style
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
 
-	float sz = ImGui::GetFontSize();
-	float padding = 5.0f;
-	float minBarWidth = 50.0f;
-	if (Settings::widgetWidth < sz + minBarWidth + padding)
-	{
-		Settings::widgetWidth = sz + minBarWidth + padding;
-	}
+	ImVec2 widgetSize(settings->widgetWidth, settings->widgetHeight);
+	ImGui::SetNextWindowPos(settings->position, ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(widgetSize, ImGuiCond_FirstUseEver);
 
-	ImVec2 barSize = ImVec2(Settings::widgetWidth, Settings::widgetHeight);
-	ImGui::SetNextWindowSize(barSize);
-	if (ImGui::Begin("Team Ratio Bar", nullptr, window_flags))
-	{
-		if (parsedLogs.empty())
-		{
+	if (ImGui::Begin(windowName.c_str(), &settings->isEnabled, window_flags)) {
+		if (parsedLogs.empty()) {
 			ImGui::Text(initialParsingComplete ? "No logs parsed yet." : "Parsing logs...");
-			ImGui::End();
-			ImGui::PopStyleVar(4);
-			return;
 		}
+		else {
+			const auto& currentLogData = parsedLogs[currentLogIndex].data;
 
-		const auto& currentLogData = parsedLogs[currentLogIndex].data;
+			const std::vector<std::string> team_names = { "Red", "Blue", "Green" };
+			const std::vector<ImVec4> team_colors = {
+				ImGui::ColorConvertU32ToFloat4(IM_COL32(0xff, 0x44, 0x44, 0xff)),
+				ImGui::ColorConvertU32ToFloat4(IM_COL32(0x33, 0xb5, 0xe5, 0xff)),
+				ImGui::ColorConvertU32ToFloat4(IM_COL32(0x99, 0xcc, 0x00, 0xff))
+			};
 
-		const std::vector<std::string> team_names = { "Red", "Blue", "Green" };
-		const std::vector<ImVec4> team_colors = {
-			ImGui::ColorConvertU32ToFloat4(IM_COL32(0xff, 0x44, 0x44, 0xff)),
-			ImGui::ColorConvertU32ToFloat4(IM_COL32(0x33, 0xb5, 0xe5, 0xff)),
-			ImGui::ColorConvertU32ToFloat4(IM_COL32(0x99, 0xcc, 0x00, 0xff))
-		};
+			struct TeamDisplayData {
+				float count;
+				ImVec4 color;
+				std::string text;
+			};
 
-		struct TeamDisplayData
-		{
-			float count;
-			ImVec4 color;
-			std::string text;
-		};
+			std::vector<TeamDisplayData> teamsToDisplay;
 
-		std::vector<TeamDisplayData> teamsToDisplay;
+			for (size_t i = 0; i < team_names.size(); ++i) {
+				auto teamIt = currentLogData.teamStats.find(team_names[i]);
+				if (teamIt != currentLogData.teamStats.end()) {
+					bool useSquadStats = settings->squadPlayersOnly && teamIt->second.isPOVTeam;
 
-		for (size_t i = 0; i < team_names.size(); ++i)
-		{
-			auto teamIt = currentLogData.teamStats.find(team_names[i]);
-			if (teamIt != currentLogData.teamStats.end())
-			{
-				bool useSquadStats = Settings::squadPlayersOnly && teamIt->second.isPOVTeam;
-				Settings::widgetStats = Settings::widgetStatsC;
+					float teamCountValue = 0.0f;
+					if (settings->widgetStats == "players") {
+						teamCountValue = static_cast<float>(useSquadStats ?
+							teamIt->second.squadStats.totalPlayers : teamIt->second.totalPlayers);
+					}
+					else if (settings->widgetStats == "deaths") {
+						teamCountValue = static_cast<float>(useSquadStats ?
+							teamIt->second.squadStats.totalDeaths : teamIt->second.totalDeaths);
+					}
+					else if (settings->widgetStats == "downs") {
+						teamCountValue = static_cast<float>(useSquadStats ?
+							teamIt->second.squadStats.totalDowned : teamIt->second.totalDowned);
+					}
+					else if (settings->widgetStats == "damage") {
+						float totalDamageToDisplay;
+						if (settings->vsLoggedPlayersOnly) {
+							totalDamageToDisplay = static_cast<float>(useSquadStats ?
+								teamIt->second.squadStats.totalDamageVsPlayers :
+								teamIt->second.totalDamageVsPlayers);
+						}
+						else {
+							totalDamageToDisplay = static_cast<float>(useSquadStats ?
+								teamIt->second.squadStats.totalDamage :
+								teamIt->second.totalDamage);
+						}
+						teamCountValue = totalDamageToDisplay;
+					}
+					else if (settings->widgetStats == "kdr") {
+						float kdRatioToDisplay = useSquadStats ?
+							teamIt->second.squadStats.getKillDeathRatio() :
+							teamIt->second.getKillDeathRatio();
+						teamCountValue = kdRatioToDisplay;
+					}
 
-				float teamCountValue = 0.0f;
-
-				if (Settings::widgetStats == "players") {
-					teamCountValue = static_cast<float>(useSquadStats ? teamIt->second.squadStats.totalPlayers : teamIt->second.totalPlayers);
-				}
-				else if (Settings::widgetStats == "deaths") {
-					teamCountValue = static_cast<float>(useSquadStats ? teamIt->second.squadStats.totalDeaths : teamIt->second.totalDeaths);
-				}
-				else if (Settings::widgetStats == "downs") {
-					teamCountValue = static_cast<float>(useSquadStats ? teamIt->second.squadStats.totalDowned : teamIt->second.totalDowned);
-				}
-				else if (Settings::widgetStats == "damage") {
-					float totalDamageToDisplay;
-					if (Settings::vsLoggedPlayersOnly) {
-						totalDamageToDisplay = static_cast<float>(useSquadStats ?
-							teamIt->second.squadStats.totalDamageVsPlayers :
-							teamIt->second.totalDamageVsPlayers);
+					char buf[64];
+					if (settings->widgetStats == "damage") {
+						std::string formattedDamage = formatDamage(static_cast<uint64_t>(teamCountValue));
+						snprintf(buf, sizeof(buf), "%s", formattedDamage.c_str());
+					}
+					else if (settings->widgetStats == "kdr") {
+						snprintf(buf, sizeof(buf), "%.2f", teamCountValue);
 					}
 					else {
-						totalDamageToDisplay = static_cast<float>(useSquadStats ?
-							teamIt->second.squadStats.totalDamage :
-							teamIt->second.totalDamage);
+						snprintf(buf, sizeof(buf), "%.0f", teamCountValue);
 					}
-					teamCountValue = totalDamageToDisplay;
+
+					teamsToDisplay.push_back(TeamDisplayData{
+						teamCountValue,
+						team_colors[i],
+						buf
+						});
 				}
-				else if (Settings::widgetStats == "kdr") {
-					float kdRatioToDisplay = useSquadStats ? teamIt->second.squadStats.getKillDeathRatio() : teamIt->second.getKillDeathRatio();
-					teamCountValue = kdRatioToDisplay;
+			}
+
+			if (teamsToDisplay.empty()) {
+				ImGui::Text("No team data available.");
+			}
+			else {
+				ImTextureID currentStatIcon = nullptr;
+				if (settings->showWidgetIcon) {
+					if (settings->widgetStats == "players") {
+						if (!Squad || !Squad->Resource) {
+							Squad = APIDefs->Textures.GetOrCreateFromResource("SQUAD_ICON", SQUAD, hSelf);
+						}
+						currentStatIcon = Squad ? Squad->Resource : nullptr;
+					}
+					else if (settings->widgetStats == "deaths") {
+						if (!Death || !Death->Resource) {
+							Death = APIDefs->Textures.GetOrCreateFromResource("DEATH_ICON", DEATH, hSelf);
+						}
+						currentStatIcon = Death ? Death->Resource : nullptr;
+					}
+					else if (settings->widgetStats == "downs") {
+						if (!Downed || !Downed->Resource) {
+							Downed = APIDefs->Textures.GetOrCreateFromResource("DOWNED_ICON", DOWNED, hSelf);
+						}
+						currentStatIcon = Downed ? Downed->Resource : nullptr;
+					}
+					else if (settings->widgetStats == "damage") {
+						if (!Damage || !Damage->Resource) {
+							Damage = APIDefs->Textures.GetOrCreateFromResource("DAMAGE_ICON", DAMAGE, hSelf);
+						}
+						currentStatIcon = Damage ? Damage->Resource : nullptr;
+					}
+					else if (settings->widgetStats == "kdr") {
+						if (!Kdr || !Kdr->Resource) {
+							Kdr = APIDefs->Textures.GetOrCreateFromResource("KDR_ICON", KDR, hSelf);
+						}
+						currentStatIcon = Kdr ? Kdr->Resource : nullptr;
+					}
 				}
 
-				char buf[64];
-				if (Settings::widgetStats == "damage") {
-					std::string formattedDamage = formatDamage(static_cast<uint64_t>(teamCountValue));
-					snprintf(buf, sizeof(buf), "%s", formattedDamage.c_str());
-				}
-				else if (Settings::widgetStats == "kdr") {
-					snprintf(buf, sizeof(buf), "%.2f", teamCountValue);
-				}
-				else {
-					snprintf(buf, sizeof(buf), "%.0f", teamCountValue);
+				std::vector<float> counts;
+				std::vector<ImVec4> colors;
+				std::vector<const char*> texts;
+
+				for (const auto& teamData : teamsToDisplay) {
+					counts.push_back(teamData.count);
+					colors.push_back(teamData.color);
+					texts.push_back(teamData.text.c_str());
 				}
 
-				teamsToDisplay.push_back(TeamDisplayData{
-					teamCountValue,
-					team_colors[i],
-					buf
-					});
+				RenderSimpleRatioBar(
+					counts,
+					colors,
+					ImVec2(widgetSize.x, widgetSize.y),
+					texts,
+					currentStatIcon,
+					settings
+				);
 			}
 		}
 
-		if (teamsToDisplay.empty())
-		{
-			ImGui::Text("No team data available.");
-			ImGui::End();
-			ImGui::PopStyleVar(4);
-			return;
+		// Handle right-click menu
+		if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup |
+			ImGuiHoveredFlags_ChildWindows) && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+			ImGui::OpenPopup("Widget Settings");
 		}
 
-		std::string statType = Settings::widgetStats;
-		ImTextureID currentStatIcon = nullptr;
+		RenderWidgetSettingsPopup(settings);
 
-		if (Settings::showClassIcons)
-		{
-			if (statType == "players")
-			{
-				if (Squad && Squad->Resource)
-				{
-					currentStatIcon = Squad->Resource;
-				}
-				else
-				{
-					Squad = APIDefs->Textures.GetOrCreateFromResource("SQUAD_ICON", SQUAD, hSelf);
-					currentStatIcon = Squad ? Squad->Resource : nullptr;
-				}
-			}
-			else if (statType == "deaths")
-			{
-				if (Death && Death->Resource)
-				{
-					currentStatIcon = Death->Resource;
-				}
-				else
-				{
-					Death = APIDefs->Textures.GetOrCreateFromResource("DEATH_ICON", DEATH, hSelf);
-					currentStatIcon = Death ? Death->Resource : nullptr;
-				}
-			}
-			else if (statType == "downs")
-			{
-				if (Downed && Downed->Resource)
-				{
-					currentStatIcon = Downed->Resource;
-				}
-				else
-				{
-					Downed = APIDefs->Textures.GetOrCreateFromResource("DOWNED_ICON", DOWNED, hSelf);
-					currentStatIcon = Downed ? Downed->Resource : nullptr;
-				}
-			}
-			else if (statType == "damage")
-			{
-				if (Damage && Damage->Resource)
-				{
-					currentStatIcon = Damage->Resource;
-				}
-				else
-				{
-					Damage = APIDefs->Textures.GetOrCreateFromResource("DAMAGE_ICON", DAMAGE, hSelf);
-					currentStatIcon = Damage ? Damage->Resource : nullptr;
-				}
-			}
-			else if (statType == "kdr")
-			{
-				if (Kdr && Kdr->Resource)
-				{
-					currentStatIcon = Kdr->Resource;
-				}
-				else
-				{
-					Kdr = APIDefs->Textures.GetOrCreateFromResource("KDR_ICON", KDR, hSelf);
-					currentStatIcon = Kdr ? Kdr->Resource : nullptr;
-				}
-			}
-		}
-
-		std::vector<float> counts;
-		std::vector<ImVec4> colors;
-		std::vector<const char*> texts;
-
-		for (const auto& teamData : teamsToDisplay)
-		{
-			counts.push_back(teamData.count);
-			colors.push_back(teamData.color);
-			texts.push_back(teamData.text.c_str());
-		}
-
-		RenderSimpleRatioBar(
-			counts,
-			colors,
-			ImVec2(barSize.x, barSize.y),
-			texts,
-			currentStatIcon
-		);
-	}
-	ImGui::PopStyleVar(4);
-
-	if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup | ImGuiHoveredFlags_ChildWindows) && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
-	{
-		ImGui::OpenPopup("Widget Menu");
-	}
-	if (ImGui::BeginPopup("Widget Menu"))
-	{
-		if (ImGui::BeginMenu("History"))
-		{
-			for (int i = 0; i < parsedLogs.size(); ++i)
-			{
-				const auto& log = parsedLogs[i];
-				std::string fnstr = log.filename.substr(0, log.filename.find_last_of('.'));
-				uint64_t durationMs = log.data.combatEndTime - log.data.combatStartTime;
-				auto duration = std::chrono::milliseconds(durationMs);
-				int minutes = std::chrono::duration_cast<std::chrono::minutes>(duration).count();
-				int seconds = std::chrono::duration_cast<std::chrono::seconds>(duration).count() % 60;
-				std::string displayName = fnstr + " (" + std::to_string(minutes) + "m " + std::to_string(seconds) + "s)";
-				if (ImGui::RadioButton(displayName.c_str(), &currentLogIndex, i))
-				{
-				}
-			}
-			ImGui::EndMenu();
-		}
-
-		if (ImGui::BeginMenu("Display Stats"))
-		{
-			Settings::widgetStats = Settings::widgetStatsC;
-			bool isPlayers = Settings::widgetStats == "players";
-			bool isDeaths = Settings::widgetStats == "deaths";
-			bool isDowns = Settings::widgetStats == "downs";
-			bool isDamage = Settings::widgetStats == "damage";
-			bool isKDR = Settings::widgetStats == "kdr";
-
-			if (ImGui::RadioButton("Players", isPlayers))
-			{
-				strcpy_s(Settings::widgetStatsC, sizeof(Settings::widgetStatsC), "players");
-				Settings::widgetStats = "players";
-				Settings::Settings[WIDGET_STATS] = Settings::widgetStatsC;
-				Settings::Save(APIDefs->Paths.GetAddonDirectory("WvWFightAnalysis/settings.json"));
-			}
-			if (ImGui::RadioButton("K/D Ratio", isKDR))
-			{
-				strcpy_s(Settings::widgetStatsC, sizeof(Settings::widgetStatsC), "kdr");
-				Settings::widgetStats = "kdr";
-				Settings::Settings[WIDGET_STATS] = Settings::widgetStatsC;
-				Settings::Save(APIDefs->Paths.GetAddonDirectory("WvWFightAnalysis/settings.json"));
-			}
-			if (ImGui::RadioButton("Deaths", isDeaths))
-			{
-				strcpy_s(Settings::widgetStatsC, sizeof(Settings::widgetStatsC), "deaths");
-				Settings::widgetStats = "deaths";
-				Settings::Settings[WIDGET_STATS] = Settings::widgetStatsC;
-				Settings::Save(APIDefs->Paths.GetAddonDirectory("WvWFightAnalysis/settings.json"));
-			}
-			if (ImGui::RadioButton("Downs", isDowns))
-			{
-				strcpy_s(Settings::widgetStatsC, sizeof(Settings::widgetStatsC), "downs");
-				Settings::widgetStats = "downs";
-				Settings::Settings[WIDGET_STATS] = Settings::widgetStatsC;
-				Settings::Save(APIDefs->Paths.GetAddonDirectory("WvWFightAnalysis/settings.json"));
-			}
-			if (ImGui::RadioButton("Damage", isDamage))
-			{
-				strcpy_s(Settings::widgetStatsC, sizeof(Settings::widgetStatsC), "damage");
-				Settings::widgetStats = "damage";
-				Settings::Settings[WIDGET_STATS] = Settings::widgetStatsC;
-				Settings::Save(APIDefs->Paths.GetAddonDirectory("WvWFightAnalysis/settings.json"));
-			}
-			ImGui::EndMenu();
-		}
-		if (ImGui::BeginMenu("Style"))
-		{
-			if (ImGui::Checkbox("Show Widget Icon", &Settings::showWidgetIcon))
-			{
-				Settings::Settings[SHOW_WIDGET_ICON] = Settings::showWidgetIcon;
-				Settings::Save(APIDefs->Paths.GetAddonDirectory("WvWFightAnalysis/settings.json"));
-			}
-			ImGui::SetNextItemWidth(200.0f);
-			if (ImGui::SliderFloat("##Widget Height", &Settings::widgetHeight, 0.0f, 900.0f))
-			{
-				Settings::widgetHeight = std::clamp(Settings::widgetHeight, 0.0f, 900.0f);
-				Settings::Settings[WIDGET_HEIGHT] = Settings::widgetHeight;
-				Settings::Save(APIDefs->Paths.GetAddonDirectory("WvWFightAnalysis/settings.json"));
-			}
-			ImGui::SameLine();
-			ImGui::SetNextItemWidth(60.0f);
-			if (ImGui::InputFloat("Widget Height", &Settings::widgetHeight, 1.0f))
-			{
-				Settings::widgetHeight = std::clamp(Settings::widgetHeight, 0.0f, 900.0f);
-				Settings::Settings[WIDGET_HEIGHT] = Settings::widgetHeight;
-				Settings::Save(APIDefs->Paths.GetAddonDirectory("WvWFightAnalysis/settings.json"));
-			}
-
-			ImGui::SetNextItemWidth(200.0f);
-			if (ImGui::SliderFloat("##Widget Width", &Settings::widgetWidth, 0.0f, 900.0f))
-			{
-				Settings::widgetWidth = std::clamp(Settings::widgetWidth, 0.0f, 900.0f);
-				Settings::Settings[WIDGET_WIDTH] = Settings::widgetWidth;
-				Settings::Save(APIDefs->Paths.GetAddonDirectory("WvWFightAnalysis/settings.json"));
-			}
-			ImGui::SameLine();
-			ImGui::SetNextItemWidth(60.0f);
-			if (ImGui::InputFloat("Widget Width", &Settings::widgetWidth, 1.0f))
-			{
-				Settings::widgetWidth = std::clamp(Settings::widgetWidth, 0.0f, 900.0f);
-				Settings::Settings[WIDGET_WIDTH] = Settings::widgetWidth;
-				Settings::Save(APIDefs->Paths.GetAddonDirectory("WvWFightAnalysis/settings.json"));
-			}
-
-			ImGui::SetNextItemWidth(200.0f);
-			if (ImGui::SliderFloat("##Widget Text Vertical Align", &Settings::widgetTextVerticalAlignOffset, -50.0f, 50.0f))
-			{
-				Settings::widgetTextVerticalAlignOffset = std::clamp(Settings::widgetTextVerticalAlignOffset, -50.0f, 50.0f);
-				Settings::Settings[WIDGET_TEXT_VERTICAL_OFFSET] = Settings::widgetTextVerticalAlignOffset;
-				Settings::Save(APIDefs->Paths.GetAddonDirectory("WvWFightAnalysis/settings.json"));
-			}
-			ImGui::SameLine();
-			ImGui::SetNextItemWidth(60.0f);
-			if (ImGui::InputFloat("Widget Text Vertical Align", &Settings::widgetTextVerticalAlignOffset, 1.0f))
-			{
-				Settings::widgetTextVerticalAlignOffset = std::clamp(Settings::widgetTextVerticalAlignOffset, -50.0f, 50.0f);
-				Settings::Settings[WIDGET_TEXT_VERTICAL_OFFSET] = Settings::widgetTextVerticalAlignOffset;
-				Settings::Save(APIDefs->Paths.GetAddonDirectory("WvWFightAnalysis/settings.json"));
-			}
-
-			ImGui::SetNextItemWidth(200.0f);
-			if (ImGui::SliderFloat("##Widget Text Horizontal Align", &Settings::widgetTextHorizontalAlignOffset, -50.0f, 50.0f))
-			{
-				Settings::widgetTextHorizontalAlignOffset = std::clamp(Settings::widgetTextHorizontalAlignOffset, -50.0f, 50.0f);
-				Settings::Settings[WIDGET_TEXT_HORIZONTAL_OFFSET] = Settings::widgetTextHorizontalAlignOffset;
-				Settings::Save(APIDefs->Paths.GetAddonDirectory("WvWFightAnalysis/settings.json"));
-			}
-			ImGui::SameLine();
-			ImGui::SetNextItemWidth(60.0f);
-			if (ImGui::InputFloat("Widget Text Horizontal Align", &Settings::widgetTextHorizontalAlignOffset, 1.0f))
-			{
-				Settings::widgetTextHorizontalAlignOffset = std::clamp(Settings::widgetTextHorizontalAlignOffset, -50.0f, 50.0f);
-				Settings::Settings[WIDGET_TEXT_HORIZONTAL_OFFSET] = Settings::widgetTextHorizontalAlignOffset;
-				Settings::Save(APIDefs->Paths.GetAddonDirectory("WvWFightAnalysis/settings.json"));
-			}
-			ImGui::EndMenu();
-		}
-		if (ImGui::Checkbox("Damage vs Logged Players Only", &Settings::vsLoggedPlayersOnly))
-		{
-			Settings::Settings[VS_LOGGED_PLAYERS_ONLY] = Settings::vsLoggedPlayersOnly;
-			Settings::Save(APIDefs->Paths.GetAddonDirectory("WvWFightAnalysis/settings.json"));
-		}
-		if (ImGui::Checkbox("Show Squad Players Only", &Settings::squadPlayersOnly))
-		{
-			Settings::Settings[SQUAD_PLAYERS_ONLY] = Settings::squadPlayersOnly;
-			Settings::Save(APIDefs->Paths.GetAddonDirectory("WvWFightAnalysis/settings.json"));
-		}
-
+		settings->position = ImGui::GetWindowPos();
 	}
 	ImGui::End();
+
+	ImGui::PopStyleVar(4);
 }
 
-void DrawAggregateStatsWindow(HINSTANCE hSelf)
-{
-	if (!Settings::IsAddonAggWindowEnabled)
-		return;
+void RenderAggregateStatsWindow(AggregateWindowSettings* settings, HINSTANCE hSelf) {
+	if (!settings->isEnabled) return;
 
 	bool hasData = false;
 	{
@@ -1068,800 +1457,440 @@ void DrawAggregateStatsWindow(HINSTANCE hSelf)
 		hasData = !globalAggregateStats.teamAggregates.empty();
 	}
 
-	if (!hasData && Settings::hideAggWhenEmpty)
-		return;
+	if (!hasData && settings->hideWhenEmpty) return;
 
-	ImGui::SetNextWindowPos(ImVec2(750, 350), ImGuiCond_FirstUseEver);
-	ImGui::SetNextWindowSize(ImVec2(200, 300), ImGuiCond_FirstUseEver);
+	std::string windowName = settings->getDisplayName("Aggregate Stats");
+
 	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoCollapse;
-
-	if (!Settings::showScrollBar) window_flags |= ImGuiWindowFlags_NoScrollbar;
-	if (!Settings::showWindowTitle) window_flags |= ImGuiWindowFlags_NoTitleBar;
-	if (Settings::disableMovingWindow) window_flags |= ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize;
-	if (Settings::disableClickingWindow) window_flags |= ImGuiWindowFlags_NoInputs;
-
-	if (ImGui::Begin("Aggregate Stats", &Settings::IsAddonAggWindowEnabled, window_flags))
-	{
-		float sz = ImGui::GetFontSize();
-
-		if (ImGui::Button("Reset"))
-		{
-			std::lock_guard<std::mutex> lock(aggregateStatsMutex);
-			globalAggregateStats = GlobalAggregateStats();
-			cachedAverages = CachedAverages();
-		}
-
-		{
-			std::lock_guard<std::mutex> lock(aggregateStatsMutex);
-
-			ImGui::Text("Avg Combat Time: %s", formatDuration(cachedAverages.averageCombatTime));
-			ImGui::Text("Total Combat Time: %s", formatDuration(globalAggregateStats.totalCombatTime));
-
-			ImGui::Separator();
-
-			for (const auto& [teamName, teamAgg] : globalAggregateStats.teamAggregates)
-			{
-				ImGui::Spacing();
-
-				ImVec4 teamColor = GetTeamColor(teamName);
-				ImGui::PushStyleColor(ImGuiCol_Text, teamColor);
-				ImGui::Text("%s", teamName.c_str());
-				ImGui::PopStyleColor();
-
-				bool useSquadStats = (Settings::squadPlayersOnly && teamAgg.isPOVTeam);
-				const SquadAggregateStats& displayStats = useSquadStats
-					? teamAgg.povSquadTotals
-					: teamAgg.teamTotals;
-
-				if (Settings::showTeamTotalPlayers) {
-					double avgPlayerCount = 0.0;
-					if (useSquadStats) {
-						auto it = cachedAverages.averagePOVSquadPlayerCounts.find(teamName);
-						if (it != cachedAverages.averagePOVSquadPlayerCounts.end())
-							avgPlayerCount = it->second;
-					}
-					else
-					{
-						auto it = cachedAverages.averageTeamPlayerCounts.find(teamName);
-						if (it != cachedAverages.averageTeamPlayerCounts.end())
-							avgPlayerCount = it->second;
-					}
-					if (Settings::showClassIcons) {
-						if (Squad && Squad->Resource)
-						{
-							ImGui::Image(Squad->Resource, ImVec2(sz, sz));
-							ImGui::SameLine(0, 5);
-						}
-						else
-						{
-							Squad = APIDefs->Textures.GetOrCreateFromResource("SQUAD_ICON", SQUAD, hSelf);
-						}
-					}
-					if (Settings::showClassNames)
-					{
-						ImGui::Text("Avg Players: %d", (int)std::round(avgPlayerCount));
-
-					}
-					else
-					{
-						ImGui::Text("%d", (int)std::round(avgPlayerCount));
-
-					}
-				}
-
-				if (Settings::showTeamDeaths)
-				{
-					if (Settings::showClassIcons)
-					{
-						if (Death && Death->Resource)
-						{
-							ImGui::Image(Death->Resource, ImVec2(sz, sz));
-							ImGui::SameLine(0, 5);
-						}
-						else
-						{
-							Death = APIDefs->Textures.GetOrCreateFromResource("DEATH_ICON", DEATH, hSelf);
-						}
-					}
-					if (Settings::showClassNames)
-					{
-						ImGui::Text("Deaths: %d", displayStats.totalDeaths);
-					}
-					else
-					{
-						ImGui::Text("%d", displayStats.totalDeaths);
-					}
-				}
-
-				if (Settings::showTeamDowned)
-				{
-					if (Settings::showClassIcons)
-					{
-						if (Downed && Downed->Resource)
-						{
-							ImGui::Image(Downed->Resource, ImVec2(sz, sz));
-							ImGui::SameLine(0, 5);
-						}
-						else
-						{
-							Downed = APIDefs->Textures.GetOrCreateFromResource("DOWNED_ICON", DOWNED, hSelf);
-						}
-					}
-					if (Settings::showClassNames)
-					{
-						ImGui::Text("Downs:  %d", displayStats.totalDowned);
-					}
-					else
-					{
-						ImGui::Text("%d", displayStats.totalDowned);
-					}
-				}
-
-				// Show spec averages
-				std::string label = "Specs##" + teamName;
-				if (ImGui::TreeNode(label.c_str())) {
-					if (useSquadStats) {
-						auto teamIt = cachedAverages.averagePOVSquadSpecCounts.find(teamName);
-						if (teamIt != cachedAverages.averagePOVSquadSpecCounts.end()) {
-							for (const auto& [specName, avgCount] : teamIt->second) {
-								ImGui::Text("- %s: %d", specName.c_str(), (int)std::round(avgCount));
-							}
-						}
-					}
-					else {
-						auto teamIt = cachedAverages.averageTeamSpecCounts.find(teamName);
-						if (teamIt != cachedAverages.averageTeamSpecCounts.end()) {
-							for (const auto& [specName, avgCount] : teamIt->second) {
-								ImGui::Text("- %s: %d", specName.c_str(), (int)std::round(avgCount));
-							}
-						}
-					}
-					ImGui::TreePop();
-				}
-
-				ImGui::Separator();
-			}
-		}
+	if (!settings->showScrollBar) window_flags |= ImGuiWindowFlags_NoScrollbar;
+	if (!settings->showTitle) window_flags |= ImGuiWindowFlags_NoTitleBar;
+	if (!settings->allowFocus) {
+		window_flags |= ImGuiWindowFlags_NoFocusOnAppearing;
+		window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus;
 	}
-	ImGui::End();
-}
+	if (!settings->showBackground) window_flags |= ImGuiWindowFlags_NoBackground;
+	if (settings->disableMoving) window_flags |= ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize;
+	if (settings->disableClicking) window_flags |= ImGuiWindowFlags_NoInputs;
 
-void SortSpecMenu() {
-	Settings::windowSort = Settings::windowSortC;
+	ImGui::SetNextWindowPos(settings->position, ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(settings->size, ImGuiCond_FirstUseEver);
 
-	struct SortOption {
-		const char* label;
-		const char* value;
-	};
+	if (settings->useWindowStyleForTitle) {
+		ImGuiStyle& style = ImGui::GetStyle();
+		ImVec4 prevTitleBg = style.Colors[ImGuiCol_TitleBg];
+		ImVec4 prevTitleBgActive = style.Colors[ImGuiCol_TitleBgActive];
+		ImVec4 prevTitleBgCollapsed = style.Colors[ImGuiCol_TitleBgCollapsed];
 
-	const SortOption sortOptions[] = {
-		{"Players", "players"},
-		{"Damage", "damage"},
-		{"Down Cont", "down cont"},
-		{"Kill Cont", "kill cont"},
-		{"Deaths", "deaths"},
-		{"Downs", "downs"}
-	};
-
-	for (const auto& option : sortOptions) {
-		bool isSelected = Settings::windowSort == option.value;
-		if (ImGui::RadioButton(option.label, isSelected)) {
-			strcpy_s(Settings::windowSortC, sizeof(Settings::windowSortC), option.value);
-			Settings::windowSort = option.value;
-			Settings::Settings[WINDOW_SORT] = Settings::windowSortC;
-			Settings::Save(SettingsPath);
-		}
-	}
-}
-
-void BarRepMenu() {
-	if (Settings::barRepIndependent) {
-		if (ImGui::BeginMenu("Bar Display")) {
-			Settings::barRepresentation = Settings::barRepresentationC;
-			struct DisplayOption {
-				const char* label;
-				const char* value;
-			};
-
-			const DisplayOption displayOptions[] = {
-				{"Players", "players"},
-				{"Damage", "damage"},
-				{"Down Cont", "down cont"},
-				{"Kill Cont", "kill cont"},
-				{"Deaths", "deaths"},
-				{"Downs", "downs"}
-			};
-
-			for (const auto& option : displayOptions) {
-				bool isSelected = Settings::barRepresentation == option.value;
-				if (ImGui::RadioButton(option.label, isSelected)) {
-					strcpy_s(Settings::barRepresentationC, sizeof(Settings::barRepresentationC), option.value);
-					Settings::barRepresentation = option.value;
-					Settings::Settings[BAR_REPRESENTATION] = Settings::barRepresentationC;
-					Settings::Save(SettingsPath);
-				}
-			}
-
-			if (ImGui::InputText("Bar Template", Settings::barTemplateC, sizeof(Settings::barTemplateC))) {
-				Settings::barTemplate = Settings::barTemplateC;
-				Settings::Settings[BAR_TEMPLATE] = Settings::barTemplate;
-				Settings::Save(SettingsPath);
-				BarTemplateRenderer::ParseTemplate(Settings::barTemplate);
-			}
-
-			ImGui::SameLine();
-			if (ImGui::Button("Reset")) {
-				const char* defaultTemplate = "@1 @2 @3 (@4)";
-				strcpy_s(Settings::barTemplateC, sizeof(Settings::barTemplateC), defaultTemplate);
-				Settings::barTemplate = Settings::barTemplateC;
-				Settings::Settings[BAR_TEMPLATE] = Settings::barTemplate;
-				Settings::Save(SettingsPath);
-				BarTemplateRenderer::ParseTemplate(Settings::barTemplate);
-			}
-
-			ImGui::Text("Variables:");
-			ImGui::Text("  @1 = Player Count");
-			ImGui::Text("  @2 = Class Icon");
-			ImGui::Text("  @3 = Class Name");
-			ImGui::Text("  @4 = Primary Stat");
-			ImGui::Text("  @5 = Secondary Stat");
-
-			ImGui::EndMenu();
-		}
-	}
-}
-
-
-void RenderSpecializationsSettingsPopup()
-{
-	if (ImGui::BeginPopup("Specializations Settings"))
-	{
-		if (ImGui::BeginMenu("Display"))
-		{
-			if (ImGui::Checkbox("Show Class Window", &Settings::showSpecBars))
-			{
-				Settings::Settings[SHOW_SPEC_BARS] = Settings::showSpecBars;
-				Settings::Save(SettingsPath);
-			}
-			if (ImGui::Checkbox("Short Class Names", &Settings::useShortClassNames))
-			{
-				Settings::Settings[USE_SHORT_CLASS_NAMES] = Settings::useShortClassNames;
-				Settings::Save(SettingsPath);
-			}
-			if (ImGui::Checkbox("Class Names", &Settings::showClassNames))
-			{
-				Settings::Settings[SHOW_CLASS_NAMES] = Settings::showClassNames;
-				Settings::Save(SettingsPath);
-			}
-			if (ImGui::Checkbox("Class Icons", &Settings::showClassIcons))
-			{
-				Settings::Settings[SHOW_CLASS_ICONS] = Settings::showClassIcons;
-				Settings::Save(SettingsPath);
-			}
-			if (ImGui::Checkbox("Class Outgoing Damage", &Settings::showSpecDamage))
-			{
-				Settings::Settings[SHOW_SPEC_DAMAGE] = Settings::showSpecDamage;
-				Settings::Save(SettingsPath);
-			}
-			if (ImGui::Checkbox("Class Down Cont", &Settings::showSpecDamage))
-			{
-				Settings::Settings[SHOW_SPEC_DAMAGE] = Settings::showSpecDamage;
-				Settings::Save(SettingsPath);
-			}
-			if (ImGui::Checkbox("Class Kill Cont", &Settings::showSpecDamage))
-			{
-				Settings::Settings[SHOW_SPEC_DAMAGE] = Settings::showSpecDamage;
-				Settings::Save(SettingsPath);
-			}
-			ImGui::EndMenu();
-		}
-
-		if (ImGui::BeginMenu("Style"))
-		{
-			if (ImGui::Checkbox("Use Tabbed View", &Settings::useTabbedView))
-			{
-				Settings::Settings[USE_TABBED_VIEW] = Settings::useTabbedView;
-				Settings::Save(SettingsPath);
-			}
-			if (ImGui::Checkbox("Split Stats Window", &Settings::splitStatsWindow))
-			{
-				Settings::Settings[SPLIT_STATS_WINDOW] = Settings::splitStatsWindow;
-				Settings::Save(SettingsPath);
-			}
-			if (ImGui::Checkbox("Show Scroll Bar", &Settings::showScrollBar))
-			{
-				Settings::Settings[SHOW_SCROLL_BAR] = Settings::showScrollBar;
-				Settings::Save(SettingsPath);
-			}
-			if (ImGui::Checkbox("Show Title", &Settings::showWindowTitle))
-			{
-				Settings::Settings[SHOW_WINDOW_TITLE] = Settings::showWindowTitle;
-				Settings::Save(SettingsPath);
-			}
-			ImGui::EndMenu();
-		}
-		if (ImGui::BeginMenu("Sort"))
-		{
-			SortSpecMenu();
-			ImGui::EndMenu();
-		}
-		BarRepMenu();
-		if (ImGui::Checkbox("Bars Independent of Sort", &Settings::barRepIndependent)) {
-			Settings::Settings[BAR_REP_INDEPENDENT] = Settings::barRepIndependent;
-			Settings::Save(SettingsPath);
-		}
-		
-		if (ImGui::Checkbox("Class Damage", &Settings::sortSpecDamage))
-		{
-			Settings::Settings[SORT_SPEC_DAMAGE] = Settings::sortSpecDamage;
-			Settings::Save(SettingsPath);
-		}
-
-		if (ImGui::Checkbox("Damage vs Logged Players Only", &Settings::vsLoggedPlayersOnly))
-		{
-			Settings::Settings[VS_LOGGED_PLAYERS_ONLY] = Settings::vsLoggedPlayersOnly;
-			Settings::Save(SettingsPath);
-		}
-		if (ImGui::Checkbox("Show Squad Players Only", &Settings::squadPlayersOnly))
-		{
-			Settings::Settings[SQUAD_PLAYERS_ONLY] = Settings::squadPlayersOnly;
-			Settings::Save(SettingsPath);
-		}
-
-		ImGui::EndPopup();
-	}
-}
-
-void RenderTeamStatsDisplayOptions()
-{
-	if (Settings::splitStatsWindow) {
-		if (ImGui::Checkbox("Show Log Name", &Settings::showLogName))
-		{
-			Settings::Settings[SHOW_LOG_NAME] = Settings::showLogName;
-			Settings::Save(SettingsPath);
-		}
-	}
-	if (ImGui::Checkbox("Team Player Count", &Settings::showTeamTotalPlayers))
-	{
-		Settings::Settings[SHOW_TEAM_TOTAL_PLAYERS] = Settings::showTeamTotalPlayers;
-		Settings::Save(SettingsPath);
-	}
-	if (ImGui::Checkbox("Team K/D Ratio", &Settings::showTeamKDR))
-	{
-		Settings::Settings[SHOW_TEAM_KDR] = Settings::showTeamKDR;
-		Settings::Save(SettingsPath);
-	}
-	if (ImGui::Checkbox("Team Incoming Deaths", &Settings::showTeamDeaths))
-	{
-		Settings::Settings[SHOW_TEAM_DEATHS] = Settings::showTeamDeaths;
-		Settings::Save(SettingsPath);
-	}
-	if (ImGui::Checkbox("Team Incoming Downs", &Settings::showTeamDowned))
-	{
-		Settings::Settings[SHOW_TEAM_DOWNED] = Settings::showTeamDowned;
-		Settings::Save(SettingsPath);
-	}
-	if (ImGui::Checkbox("Team Outgoing Damage", &Settings::showTeamDamage))
-	{
-		Settings::Settings[SHOW_TEAM_DAMAGE] = Settings::showTeamDamage;
-		Settings::Save(SettingsPath);
-	}
-	if (ImGui::Checkbox("Team Outgoing Down Cont", &Settings::showTeamDownCont))
-	{
-		Settings::Settings[SHOW_TEAM_DOWN_CONT] = Settings::showTeamDownCont;
-		Settings::Save(SettingsPath);
-	}
-	if (ImGui::Checkbox("Team Outgoing Kill Cont", &Settings::showTeamKillCont))
-	{
-		Settings::Settings[SHOW_TEAM_KILL_CONT] = Settings::showTeamKillCont;
-		Settings::Save(SettingsPath);
-	}
-	if (ImGui::Checkbox("Team Outgoing Strike Damage", &Settings::showTeamStrikeDamage))
-	{
-		Settings::Settings[SHOW_TEAM_STRIKE] = Settings::showTeamStrikeDamage;
-		Settings::Save(SettingsPath);
-	}
-	if (ImGui::Checkbox("Team Outgoing Condi Damage", &Settings::showTeamCondiDamage))
-	{
-		Settings::Settings[SHOW_TEAM_CONDI] = Settings::showTeamCondiDamage;
-		Settings::Save(SettingsPath);
-	}
-}
-
-void RenderLogSelectionPopup(const std::deque<ParsedLog>& parsedLogs, int& currentLogIndex)
-{
-	if (ImGui::BeginPopup("Log Selection"))
-	{
-		if (ImGui::BeginMenu("History"))
-		{
-			for (int i = 0; i < parsedLogs.size(); ++i)
-			{
-				const auto& log = parsedLogs[i];
-				std::string fnstr = log.filename.substr(0, log.filename.find_last_of('.'));
-				uint64_t durationMs = log.data.combatEndTime - log.data.combatStartTime;
-				auto duration = std::chrono::milliseconds(durationMs);
-				int minutes = std::chrono::duration_cast<std::chrono::minutes>(duration).count();
-				int seconds = std::chrono::duration_cast<std::chrono::seconds>(duration).count() % 60;
-				std::string displayName = fnstr + " (" + std::to_string(minutes) + "m " + std::to_string(seconds) + "s)";
-
-				if (ImGui::RadioButton(displayName.c_str(), &currentLogIndex, i))
-				{
-					// Selection handled by RadioButton
-				}
-			}
-			ImGui::EndMenu();
-		}
-
-		if (ImGui::BeginMenu("Display"))
-		{
-			if (!Settings::splitStatsWindow) {
-				if (ImGui::Checkbox("Log Name", &Settings::showLogName))
-				{
-					Settings::Settings[SHOW_LOG_NAME] = Settings::showLogName;
-					Settings::Save(SettingsPath);
-				}
-				if (ImGui::Checkbox("Short Names", &Settings::useShortClassNames))
-				{
-					Settings::Settings[USE_SHORT_CLASS_NAMES] = Settings::useShortClassNames;
-					Settings::Save(SettingsPath);
-				}
-				if (ImGui::Checkbox("Class Bars", &Settings::showSpecBars))
-				{
-					Settings::Settings[SHOW_SPEC_BARS] = Settings::showSpecBars;
-					Settings::Save(SettingsPath);
-				}
-				if (ImGui::Checkbox("Class Names", &Settings::showClassNames))
-				{
-					Settings::Settings[SHOW_CLASS_NAMES] = Settings::showClassNames;
-					Settings::Save(SettingsPath);
-				}
-				if (ImGui::Checkbox("Class Icons", &Settings::showClassIcons))
-				{
-					Settings::Settings[SHOW_CLASS_ICONS] = Settings::showClassIcons;
-					Settings::Save(SettingsPath);
-				}
-				if (ImGui::Checkbox("Class Outgoing Damage", &Settings::showSpecDamage))
-				{
-					Settings::Settings[SHOW_SPEC_DAMAGE] = Settings::showSpecDamage;
-					Settings::Save(SettingsPath);
-				}
-				if (ImGui::Checkbox("Class Down Cont", &Settings::showSpecDamage))
-				{
-					Settings::Settings[SHOW_SPEC_DAMAGE] = Settings::showSpecDamage;
-					Settings::Save(SettingsPath);
-				}
-				if (ImGui::Checkbox("Class Kill Cont", &Settings::showSpecDamage))
-				{
-					Settings::Settings[SHOW_SPEC_DAMAGE] = Settings::showSpecDamage;
-					Settings::Save(SettingsPath);
-				}
-				ImGui::Separator();
-			}
-			else {
-				if (ImGui::Checkbox("Split Class Window", &Settings::showSpecBars))
-				{
-					Settings::Settings[SHOW_SPEC_BARS] = Settings::showSpecBars;
-					Settings::Save(SettingsPath);
-				}
-			}
-
-			// Team statistics display options
-			RenderTeamStatsDisplayOptions();
-
-			ImGui::EndMenu();
-		}
-
-		if (ImGui::BeginMenu("Style"))
-		{
-			if (ImGui::Checkbox("Use Tabbed View", &Settings::useTabbedView))
-			{
-				Settings::Settings[USE_TABBED_VIEW] = Settings::useTabbedView;
-				Settings::Save(SettingsPath);
-			}
-			if (ImGui::Checkbox("Split Stats Window", &Settings::splitStatsWindow))
-			{
-				Settings::Settings[SPLIT_STATS_WINDOW] = Settings::splitStatsWindow;
-				Settings::Save(SettingsPath);
-			}
-			if (ImGui::Checkbox("Show Scroll Bar", &Settings::showScrollBar))
-			{
-				Settings::Settings[SHOW_SCROLL_BAR] = Settings::showScrollBar;
-				Settings::Save(SettingsPath);
-			}
-			if (ImGui::Checkbox("Show Title", &Settings::showWindowTitle))
-			{
-				Settings::Settings[SHOW_WINDOW_TITLE] = Settings::showWindowTitle;
-				Settings::Save(SettingsPath);
-			}
-			if (ImGui::Checkbox("Show Background", &Settings::showWindowBackground))
-			{
-				Settings::Settings[SHOW_WINDOW_BACKGROUND] = Settings::showWindowBackground;
-				Settings::Save(SettingsPath);
-			}
-			if (ImGui::Checkbox("Allow Focus", &Settings::allowWindowFocus))
-			{
-				Settings::Settings[ALLOW_WINDOW_FOCUS] = Settings::allowWindowFocus;
-				Settings::Save(SettingsPath);
-			}
-			ImGui::EndMenu();
-		}
-		if (ImGui::BeginMenu("Sort"))
-		{
-			SortSpecMenu();
-			ImGui::EndMenu();
-		}
-		BarRepMenu();
-		if (ImGui::Checkbox("Bars Independent of Sort", &Settings::barRepIndependent)) {
-			Settings::Settings[BAR_REP_INDEPENDENT] = Settings::barRepIndependent;
-			Settings::Save(SettingsPath);
-		}
-		
-		if (ImGui::Checkbox("Damage vs Logged Players Only", &Settings::vsLoggedPlayersOnly))
-		{
-			Settings::Settings[VS_LOGGED_PLAYERS_ONLY] = Settings::vsLoggedPlayersOnly;
-			Settings::Save(SettingsPath);
-		}
-		if (ImGui::Checkbox("Show Squad Players Only", &Settings::squadPlayersOnly))
-		{
-			Settings::Settings[SQUAD_PLAYERS_ONLY] = Settings::squadPlayersOnly;
-			Settings::Save(SettingsPath);
-		}
-
-		ImGui::EndPopup();
-	}
-}
-
-void RenderTeamHeader(const std::string& teamName, const TeamStats& teamData, const ImVec4& teamColor, HINSTANCE hSelf) {
-	ImGui::PushStyleColor(ImGuiCol_Text, teamColor);
-
-	if (teamData.isPOVTeam) {
-		if (Home && Home->Resource) {
-			float sz = ImGui::GetFontSize() - 1;
-			ImGui::Image(Home->Resource, ImVec2(sz, sz));
-			ImGui::SameLine(0, 5);
+		if (settings->showBackground) {
+			style.Colors[ImGuiCol_TitleBg] = style.Colors[ImGuiCol_WindowBg];
+			style.Colors[ImGuiCol_TitleBgActive] = style.Colors[ImGuiCol_WindowBg];
+			style.Colors[ImGuiCol_TitleBgCollapsed] = style.Colors[ImGuiCol_WindowBg];
 		}
 		else {
-			Home = APIDefs->Textures.GetOrCreateFromResource("HOME_ICON", HOME, hSelf);
+			ImVec4 transparentColor = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+			style.Colors[ImGuiCol_TitleBg] = transparentColor;
+			style.Colors[ImGuiCol_TitleBgActive] = transparentColor;
+			style.Colors[ImGuiCol_TitleBgCollapsed] = transparentColor;
+		}
+
+		if (ImGui::Begin(windowName.c_str(), &settings->isEnabled, window_flags)) {
+			float sz = ImGui::GetFontSize();
+
+			if (ImGui::Button("Reset")) {
+				std::lock_guard<std::mutex> lock(aggregateStatsMutex);
+				globalAggregateStats = GlobalAggregateStats();
+				cachedAverages = CachedAverages();
+			}
+
+			{
+				std::lock_guard<std::mutex> lock(aggregateStatsMutex);
+
+				if (settings->showTotalCombatTime) {
+					ImGui::Text("Total Combat Time: %s", formatDuration(globalAggregateStats.totalCombatTime));
+				}
+				if (settings->showAvgCombatTime) {
+					ImGui::Text("Avg Combat Time: %s", formatDuration(cachedAverages.averageCombatTime));
+				}
+
+				ImGui::Separator();
+
+				for (const auto& [teamName, teamAgg] : globalAggregateStats.teamAggregates) {
+					ImGui::Spacing();
+
+					ImVec4 teamColor = GetTeamColor(teamName);
+					ImGui::PushStyleColor(ImGuiCol_Text, teamColor);
+					ImGui::Text("%s", teamName.c_str());
+					ImGui::PopStyleColor();
+
+					bool useSquadStats = (settings->squadPlayersOnly && teamAgg.isPOVTeam);
+					const SquadAggregateStats& displayStats = useSquadStats ?
+						teamAgg.povSquadTotals : teamAgg.teamTotals;
+
+					if (settings->showTeamTotalPlayers) {
+						double avgPlayerCount = useSquadStats ?
+							cachedAverages.averagePOVSquadPlayerCounts[teamName] :
+							cachedAverages.averageTeamPlayerCounts[teamName];
+
+						if (settings->showClassIcons) {
+							if (Squad && Squad->Resource) {
+								ImGui::Image(Squad->Resource, ImVec2(sz, sz));
+								ImGui::SameLine(0, 5);
+							}
+							else {
+								Squad = APIDefs->Textures.GetOrCreateFromResource("SQUAD_ICON", SQUAD, hSelf);
+							}
+						}
+						if (settings->showClassNames) {
+							ImGui::Text("Avg Players: %d", (int)std::round(avgPlayerCount));
+						}
+						else {
+							ImGui::Text("%d", (int)std::round(avgPlayerCount));
+						}
+					}
+
+					if (settings->showTeamDeaths) {
+						if (settings->showClassIcons) {
+							if (Death && Death->Resource) {
+								ImGui::Image(Death->Resource, ImVec2(sz, sz));
+								ImGui::SameLine(0, 5);
+							}
+							else {
+								Death = APIDefs->Textures.GetOrCreateFromResource("DEATH_ICON", DEATH, hSelf);
+							}
+						}
+						if (settings->showClassNames) {
+							ImGui::Text("Deaths: %d", displayStats.totalDeaths);
+						}
+						else {
+							ImGui::Text("%d", displayStats.totalDeaths);
+						}
+					}
+
+					if (settings->showTeamDowned) {
+						if (settings->showClassIcons) {
+							if (Downed && Downed->Resource) {
+								ImGui::Image(Downed->Resource, ImVec2(sz, sz));
+								ImGui::SameLine(0, 5);
+							}
+							else {
+								Downed = APIDefs->Textures.GetOrCreateFromResource("DOWNED_ICON", DOWNED, hSelf);
+							}
+						}
+						if (settings->showClassNames) {
+							ImGui::Text("Downs: %d", displayStats.totalDowned);
+						}
+						else {
+							ImGui::Text("%d", displayStats.totalDowned);
+						}
+					}
+
+					if (settings->showAvgSpecs) {
+						std::string label = "Specs##" + teamName;
+						if (ImGui::TreeNode(label.c_str())) {
+							if (useSquadStats) {
+								auto teamIt = cachedAverages.averagePOVSquadSpecCounts.find(teamName);
+								if (teamIt != cachedAverages.averagePOVSquadSpecCounts.end()) {
+									for (const auto& [specName, avgCount] : teamIt->second) {
+										ImGui::Text("- %s: %d", specName.c_str(), (int)std::round(avgCount));
+									}
+								}
+							}
+							else {
+								auto teamIt = cachedAverages.averageTeamSpecCounts.find(teamName);
+								if (teamIt != cachedAverages.averageTeamSpecCounts.end()) {
+									for (const auto& [specName, avgCount] : teamIt->second) {
+										ImGui::Text("- %s: %d", specName.c_str(), (int)std::round(avgCount));
+									}
+								}
+							}
+							ImGui::TreePop();
+						}
+					}
+
+					ImGui::Separator();
+				}
+			}
+
+			if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup |
+				ImGuiHoveredFlags_ChildWindows) && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+				ImGui::OpenPopup("Aggregate Settings");
+			}
+
+			RenderAggregateSettingsPopup(settings);
+
+			settings->position = ImGui::GetWindowPos();
+			settings->size = ImGui::GetWindowSize();
+
+			ImGui::End();
+		}
+
+		style.Colors[ImGuiCol_TitleBg] = prevTitleBg;
+		style.Colors[ImGuiCol_TitleBgActive] = prevTitleBgActive;
+		style.Colors[ImGuiCol_TitleBgCollapsed] = prevTitleBgCollapsed;
+	}
+	else {
+		if (ImGui::Begin(windowName.c_str(), &settings->isEnabled, window_flags)) {
+			float sz = ImGui::GetFontSize();
+
+			if (ImGui::Button("Reset")) {
+				std::lock_guard<std::mutex> lock(aggregateStatsMutex);
+				globalAggregateStats = GlobalAggregateStats();
+				cachedAverages = CachedAverages();
+			}
+
+			{
+				std::lock_guard<std::mutex> lock(aggregateStatsMutex);
+
+				if (settings->showTotalCombatTime) {
+					ImGui::Text("Total Combat Time: %s", formatDuration(globalAggregateStats.totalCombatTime));
+				}
+				if (settings->showAvgCombatTime) {
+					ImGui::Text("Avg Combat Time: %s", formatDuration(cachedAverages.averageCombatTime));
+				}
+
+				ImGui::Separator();
+
+				for (const auto& [teamName, teamAgg] : globalAggregateStats.teamAggregates) {
+					ImGui::Spacing();
+
+					ImVec4 teamColor = GetTeamColor(teamName);
+					ImGui::PushStyleColor(ImGuiCol_Text, teamColor);
+					ImGui::Text("%s", teamName.c_str());
+					ImGui::PopStyleColor();
+
+					bool useSquadStats = (settings->squadPlayersOnly && teamAgg.isPOVTeam);
+					const SquadAggregateStats& displayStats = useSquadStats ?
+						teamAgg.povSquadTotals : teamAgg.teamTotals;
+
+					if (settings->showTeamTotalPlayers) {
+						double avgPlayerCount = useSquadStats ?
+							cachedAverages.averagePOVSquadPlayerCounts[teamName] :
+							cachedAverages.averageTeamPlayerCounts[teamName];
+
+						if (settings->showClassIcons) {
+							if (Squad && Squad->Resource) {
+								ImGui::Image(Squad->Resource, ImVec2(sz, sz));
+								ImGui::SameLine(0, 5);
+							}
+							else {
+								Squad = APIDefs->Textures.GetOrCreateFromResource("SQUAD_ICON", SQUAD, hSelf);
+							}
+						}
+						if (settings->showClassNames) {
+							ImGui::Text("Avg Players: %d", (int)std::round(avgPlayerCount));
+						}
+						else {
+							ImGui::Text("%d", (int)std::round(avgPlayerCount));
+						}
+					}
+
+					if (settings->showTeamDeaths) {
+						if (settings->showClassIcons) {
+							if (Death && Death->Resource) {
+								ImGui::Image(Death->Resource, ImVec2(sz, sz));
+								ImGui::SameLine(0, 5);
+							}
+							else {
+								Death = APIDefs->Textures.GetOrCreateFromResource("DEATH_ICON", DEATH, hSelf);
+							}
+						}
+						if (settings->showClassNames) {
+							ImGui::Text("Deaths: %d", displayStats.totalDeaths);
+						}
+						else {
+							ImGui::Text("%d", displayStats.totalDeaths);
+						}
+					}
+
+					if (settings->showTeamDowned) {
+						if (settings->showClassIcons) {
+							if (Downed && Downed->Resource) {
+								ImGui::Image(Downed->Resource, ImVec2(sz, sz));
+								ImGui::SameLine(0, 5);
+							}
+							else {
+								Downed = APIDefs->Textures.GetOrCreateFromResource("DOWNED_ICON", DOWNED, hSelf);
+							}
+						}
+						if (settings->showClassNames) {
+							ImGui::Text("Downs: %d", displayStats.totalDowned);
+						}
+						else {
+							ImGui::Text("%d", displayStats.totalDowned);
+						}
+					}
+
+					if (settings->showAvgSpecs) {
+						std::string label = "Specs##" + teamName;
+						if (ImGui::TreeNode(label.c_str())) {
+							if (useSquadStats) {
+								auto teamIt = cachedAverages.averagePOVSquadSpecCounts.find(teamName);
+								if (teamIt != cachedAverages.averagePOVSquadSpecCounts.end()) {
+									for (const auto& [specName, avgCount] : teamIt->second) {
+										ImGui::Text("- %s: %d", specName.c_str(), (int)std::round(avgCount));
+									}
+								}
+							}
+							else {
+								auto teamIt = cachedAverages.averageTeamSpecCounts.find(teamName);
+								if (teamIt != cachedAverages.averageTeamSpecCounts.end()) {
+									for (const auto& [specName, avgCount] : teamIt->second) {
+										ImGui::Text("- %s: %d", specName.c_str(), (int)std::round(avgCount));
+									}
+								}
+							}
+							ImGui::TreePop();
+						}
+					}
+
+					ImGui::Separator();
+				}
+			}
+
+			if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup |
+				ImGuiHoveredFlags_ChildWindows) && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+				ImGui::OpenPopup("Aggregate Settings");
+			}
+
+			RenderAggregateSettingsPopup(settings);
+
+			settings->position = ImGui::GetWindowPos();
+			settings->size = ImGui::GetWindowSize();
+
+			ImGui::End();
 		}
 	}
-
-	ImGui::Text("%s Team", teamName.c_str());
-	ImGui::PopStyleColor();
 }
 
-struct TeamRenderInfo {
-	bool hasData;
-	const TeamStats* stats;
-	std::string name;
-	ImVec4 color;
-};
+void RenderAggregateSettingsPopup(AggregateWindowSettings* settings) {
+	if (ImGui::BeginPopup("Aggregate Settings")) {
+		if (!settings->isWindowNameEditing) {
+			strncpy(settings->tempWindowName, settings->windowName.c_str(), sizeof(settings->tempWindowName) - 1);
+			settings->isWindowNameEditing = true;
+		}
 
-void RenderMainWindow(HINSTANCE hSelf)
-{
-	if (!Settings::IsAddonWindowEnabled)
-	{
-		if (Settings::Settings[IS_ADDON_WINDOW_VISIBLE] != Settings::IsAddonWindowEnabled)
-		{
-			Settings::Settings[IS_ADDON_WINDOW_VISIBLE] = Settings::IsAddonWindowEnabled;
+		ImGui::Text("Window Name:");
+		float windowWidth = ImGui::GetWindowWidth();
+		ImGui::SetNextItemWidth(windowWidth * 0.5f);
+		if (ImGui::InputText("##Window Name", settings->tempWindowName, sizeof(settings->tempWindowName))) {}
+
+		ImGui::SameLine();
+		if (ImGui::Button("Apply")) {
+			settings->windowName = settings->tempWindowName;
 			Settings::Save(SettingsPath);
 		}
+
+		if (ImGui::BeginMenu("Display")) {
+
+			if (ImGui::Checkbox("average combat time", &settings->showAvgCombatTime)) {
+				Settings::Save(SettingsPath);
+			}
+			if (ImGui::Checkbox("show total tombat time", &settings->showTotalCombatTime)) {
+				Settings::Save(SettingsPath);
+			}
+			ImGui::Separator();
+
+			if (ImGui::Checkbox("average players", &settings->showTeamTotalPlayers)) {
+				Settings::Save(SettingsPath);
+			}
+			if (ImGui::Checkbox("deaths", &settings->showTeamDeaths)) {
+				Settings::Save(SettingsPath);
+			}
+			if (ImGui::Checkbox("downs", &settings->showTeamDowned)) {
+				Settings::Save(SettingsPath);
+			}
+			ImGui::Separator();
+
+			if (ImGui::Checkbox("label names", &settings->showClassNames)) {
+				Settings::Save(SettingsPath);
+			}
+			if (ImGui::Checkbox("icons", &settings->showClassIcons)) {
+				Settings::Save(SettingsPath);
+			}
+			if (ImGui::Checkbox("average specs", &settings->showAvgSpecs)) {
+				Settings::Save(SettingsPath);
+			}
+			ImGui::EndMenu();
+		}
+
+		if (ImGui::BeginMenu("Style")) {
+			if (ImGui::Checkbox("show title", &settings->showTitle)) { Settings::Save(SettingsPath); }
+			if (ImGui::Checkbox("use window style for title bar", &settings->useWindowStyleForTitle)) {
+				Settings::Save(SettingsPath);
+			}
+			if (ImGui::Checkbox("scroll bar", &settings->showScrollBar)) { Settings::Save(SettingsPath); }
+			if (ImGui::Checkbox("background", &settings->showBackground)) { Settings::Save(SettingsPath); }
+			if (ImGui::Checkbox("allow focus", &settings->allowFocus)) { Settings::Save(SettingsPath); }
+			ImGui::EndMenu();
+		}
+
+		if (ImGui::Checkbox("Squad Players Only", &settings->squadPlayersOnly)) {
+			Settings::Save(SettingsPath);
+		}
+
+		ImGui::EndPopup();
+	}
+	else {
+		settings->isWindowNameEditing = false;
+	}
+}
+
+void RenderAllWindows(HINSTANCE hSelf) {
+	if (!NexusLink || !NexusLink->IsGameplay || !MumbleLink || MumbleLink->Context.IsMapOpen) {
 		return;
 	}
 
-	if (!Settings::splitStatsWindow)
-	{
-		if (Settings::Settings[SPLIT_STATS_WINDOW] != Settings::splitStatsWindow)
-		{
-			Settings::Settings[SPLIT_STATS_WINDOW] = Settings::splitStatsWindow;
-			Settings::Save(SettingsPath);
-		}
+	if (
+		MumbleLink->Context.MapType != Mumble::EMapType::WvW_EternalBattlegrounds &&
+		MumbleLink->Context.MapType != Mumble::EMapType::WvW_BlueBorderlands &&
+		MumbleLink->Context.MapType != Mumble::EMapType::WvW_GreenBorderlands &&
+		MumbleLink->Context.MapType != Mumble::EMapType::WvW_RedBorderlands &&
+		MumbleLink->Context.MapType != Mumble::EMapType::WvW_ObsidianSanctum &&
+		MumbleLink->Context.MapType != Mumble::EMapType::WvW_EdgeOfTheMists &&
+		MumbleLink->Context.MapType != Mumble::EMapType::WvW_Lounge
+		) {
+		return;
 	}
 
-	ImGui::SetNextWindowPos(ImVec2(1030, 300), ImGuiCond_FirstUseEver);
-	ImGui::SetNextWindowSize(ImVec2(300, 500), ImGuiCond_FirstUseEver);
-	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoCollapse;
+	bool inCombat = MumbleLink->Context.IsInCombat;
 
-	if (!Settings::showScrollBar) window_flags |= ImGuiWindowFlags_NoScrollbar;
-	if (!Settings::showWindowTitle) window_flags |= ImGuiWindowFlags_NoTitleBar;
-	if (!Settings::allowWindowFocus) window_flags |= ImGuiWindowFlags_NoFocusOnAppearing;
-	if (!Settings::allowWindowFocus) window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus;
-	if (!Settings::showWindowBackground) window_flags |= ImGuiWindowFlags_NoBackground;
-	if (Settings::disableMovingWindow) window_flags |= ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize;
-	if (Settings::disableClickingWindow) window_flags |= ImGuiWindowFlags_NoInputs;
+	for (auto& mainWindow : Settings::windowManager.mainWindows) {
+		if (!mainWindow || !mainWindow->isEnabled) continue;
+		if (inCombat && mainWindow->hideInCombat) continue;
+		if (!inCombat && mainWindow->hideOutOfCombat) continue;
 
-	if (ImGui::Begin("WvW Fight Analysis", &Settings::IsAddonWindowEnabled, window_flags))
-	{
-		ImGuiStyle& style = ImGui::GetStyle();
-		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(style.FramePadding.x, 5));
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 10));
+		std::string windowId = mainWindow->windowId;
+		if (windowId.empty()) continue;
+		ImGui::SetNextWindowSizeConstraints(ImVec2(100, 100), ImVec2(FLT_MAX, FLT_MAX));
 
-		if (parsedLogs.empty())
-		{
-			ImGui::Text(initialParsingComplete ? "No logs parsed yet." : "Parsing logs...");
-			ImGui::PopStyleVar(2);
-			ImGui::End();
-			return;
+		RenderMainWindow(mainWindow.get(), hSelf);
+	}
+
+	for (auto& widgetWindow : Settings::windowManager.widgetWindows) {
+		if (!widgetWindow || !widgetWindow->isEnabled) continue;
+		if (inCombat && widgetWindow->hideInCombat) continue;
+		if (!inCombat && widgetWindow->hideOutOfCombat) continue;
+
+		std::string windowId = widgetWindow->windowId;
+		if (windowId.empty()) continue;
+
+		RenderWidgetWindow(widgetWindow.get(), hSelf);
+	}
+
+	if (Settings::windowManager.aggregateWindow &&
+		Settings::windowManager.aggregateWindow->isEnabled) {
+
+		bool shouldHide = false;
+
+		if (inCombat && Settings::windowManager.aggregateWindow->hideInCombat) {
+			shouldHide = true;
 		}
-
-		const auto& currentLog = parsedLogs[currentLogIndex];
-		const auto& currentLogData = currentLog.data;
-
-		if (Settings::showLogName) {
-			
-			std::string displayName = generateLogDisplayName(currentLog.filename, currentLog.data.combatStartTime, currentLog.data.combatEndTime);
-			ImGui::Text("%s", displayName.c_str());
+		if (!inCombat && Settings::windowManager.aggregateWindow->hideOutOfCombat) {
+			shouldHide = true;
 		}
-
-		std::array<TeamRenderInfo, 3> teams;
-		int teamsWithData = 0;
-
-		const char* team_names[] = { "Red", "Blue", "Green" };
-		ImVec4 team_colors[] = {
-			ImGui::ColorConvertU32ToFloat4(IM_COL32(0xFF, 0x44, 0x44, 0xFF)),
-			ImGui::ColorConvertU32ToFloat4(IM_COL32(0x33, 0xB5, 0xE5, 0xFF)),
-			ImGui::ColorConvertU32ToFloat4(IM_COL32(0x99, 0xCC, 0x00, 0xFF))
-		};
-
-		for (int i = 0; i < 3; ++i) {
-			auto teamIt = currentLogData.teamStats.find(team_names[i]);
-			teams[i].hasData = teamIt != currentLogData.teamStats.end() &&
-				teamIt->second.totalPlayers >= Settings::teamPlayerThreshold;
-			if (teams[i].hasData) {
-				teamsWithData++;
-				teams[i].stats = &teamIt->second;
-				teams[i].name = team_names[i];
-				teams[i].color = team_colors[i];
-			}
+		if (!shouldHide) {
+			ImGui::SetNextWindowSizeConstraints(ImVec2(100, 100), ImVec2(FLT_MAX, FLT_MAX));
+			RenderAggregateStatsWindow(Settings::windowManager.aggregateWindow.get(), hSelf);
 		}
-
-		if (teamsWithData == 0)
-		{
-			ImGui::Text("No team data available meeting the player threshold.");
-		}
-		else
-		{
-			if (Settings::useTabbedView)
-			{
-				if (ImGui::BeginTabBar("TeamTabBar", ImGuiTabBarFlags_None))
-				{
-					for (int i = 0; i < 3; ++i) {
-						if (teams[i].hasData) {
-							ImGui::PushStyleColor(ImGuiCol_Text, teams[i].color);
-							std::string tabName = teams[i].stats->isPOVTeam ?
-								"* " + teams[i].name : teams[i].name;
-
-							if (ImGui::BeginTabItem(tabName.c_str())) {
-								ImGui::PopStyleColor();
-								RenderTeamData(i, *teams[i].stats, hSelf);
-								ImGui::EndTabItem();
-							}
-							else {
-								ImGui::PopStyleColor();
-							}
-						}
-					}
-					ImGui::EndTabBar();
-				}
-			}
-			else
-			{
-				if (ImGui::BeginTable("TeamTable", teamsWithData, ImGuiTableFlags_BordersInner))
-				{
-					for (const auto& team : teams) {
-						if (team.hasData) {
-							ImGui::TableSetupColumn(team.name.c_str(), ImGuiTableColumnFlags_WidthStretch);
-						}
-					}
-
-					ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
-					int columnIndex = 0;
-					for (int i = 0; i < 3; ++i) {
-						if (teams[i].hasData) {
-							ImGui::TableSetColumnIndex(columnIndex++);
-							RenderTeamHeader(teams[i].name, *teams[i].stats, teams[i].color, hSelf);
-						}
-					}
-					ImGui::TableNextRow();
-					columnIndex = 0;
-					for (int i = 0; i < 3; ++i) {
-						if (teams[i].hasData) {
-							ImGui::TableSetColumnIndex(columnIndex++);
-							RenderTeamData(i, *teams[i].stats, hSelf);
-						}
-					}
-
-					ImGui::EndTable();
-				}
-			}
-		}
-
-		// Render specialization bars in separate window
-		if (Settings::showSpecBars && Settings::splitStatsWindow)
-		{
-			window_flags |= ImGuiWindowFlags_NoFocusOnAppearing;
-			ImGui::SetNextWindowSize(ImVec2(300, 500), ImGuiCond_FirstUseEver);
-			ImVec2 mainWindowPos = ImGui::GetWindowPos();
-			ImVec2 mainWindowSize = ImGui::GetWindowSize();
-			ImGui::SetNextWindowPos(ImVec2(mainWindowPos.x + mainWindowSize.x + 10, mainWindowPos.y), ImGuiCond_FirstUseEver);
-
-			if (ImGui::Begin("Specializations", &Settings::splitStatsWindow, window_flags))
-			{
-				if (Settings::useTabbedView)
-				{
-					if (ImGui::BeginTabBar("SpecTabBar", ImGuiTabBarFlags_None))
-					{
-						for (int i = 0; i < 3; ++i) {
-							if (teams[i].hasData) {
-								ImGui::PushStyleColor(ImGuiCol_Text, teams[i].color);
-								std::string tabName = teams[i].stats->isPOVTeam ?
-									"* " + teams[i].name : teams[i].name;
-
-								if (ImGui::BeginTabItem(tabName.c_str())) {
-									ImGui::PopStyleColor();
-									RenderSpecializationBars(*teams[i].stats, i, hSelf);
-									ImGui::EndTabItem();
-								}
-								else {
-									ImGui::PopStyleColor();
-								}
-							}
-						}
-						ImGui::EndTabBar();
-					}
-				}
-				else
-				{
-					if (ImGui::BeginTable("SpecTable", teamsWithData, ImGuiTableFlags_BordersInner))
-					{
-						for (const auto& team : teams) {
-							if (team.hasData) {
-								ImGui::TableSetupColumn(team.name.c_str(), ImGuiTableColumnFlags_WidthStretch);
-							}
-						}
-
-						ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
-						int columnIndex = 0;
-						for (int i = 0; i < 3; ++i) {
-							if (teams[i].hasData) {
-								ImGui::TableSetColumnIndex(columnIndex++);
-								RenderTeamHeader(teams[i].name, *teams[i].stats, teams[i].color, hSelf);
-							}
-						}
-
-						ImGui::TableNextRow();
-						columnIndex = 0;
-						for (int i = 0; i < 3; ++i) {
-							if (teams[i].hasData) {
-								ImGui::TableSetColumnIndex(columnIndex++);
-								RenderSpecializationBars(*teams[i].stats, i, hSelf);
-							}
-						}
-
-						ImGui::EndTable();
-					}
-				}
-
-				if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup | ImGuiHoveredFlags_ChildWindows) &&
-					ImGui::IsMouseClicked(ImGuiMouseButton_Right))
-				{
-					ImGui::OpenPopup("Specializations Settings");
-				}
-
-				RenderSpecializationsSettingsPopup();
-			}
-			ImGui::End();
-		}
-
-		ImGui::PopStyleVar(2);
-
-		if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup | ImGuiHoveredFlags_ChildWindows) &&
-			ImGui::IsMouseClicked(ImGuiMouseButton_Right))
-		{
-			ImGui::OpenPopup("Log Selection");
-		}
-
-		RenderLogSelectionPopup(parsedLogs, currentLogIndex);
-
-		ImGui::End();
 	}
 }

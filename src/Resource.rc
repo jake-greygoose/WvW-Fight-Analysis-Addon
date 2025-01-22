@@ -138,6 +138,10 @@ KDR                     PNG                     "assets\\Arena_Proprietor_icon.p
 
 HOME                    PNG                     "assets\\home_icon.png"
 
+DOWNCONT                PNG                     "assets\\down_cont_icon.png"
+
+KILLCONT                PNG                     "assets\\kill_cont_icon.png"
+
 #endif    // English (United States) resources
 /////////////////////////////////////////////////////////////////////////////
 

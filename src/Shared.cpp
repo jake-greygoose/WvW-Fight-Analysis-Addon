@@ -61,6 +61,8 @@ Texture* Condi = nullptr;
 Texture* Strike = nullptr;
 Texture* Kdr = nullptr;
 Texture* Home = nullptr;
+Texture* Downcont = nullptr;
+Texture* Killcont = nullptr;
 
 // New definitions
 std::atomic<bool> initialParsingComplete{ false };
