@@ -13,7 +13,7 @@ std::unordered_set<std::wstring> processedFiles;
 std::filesystem::file_time_type maxProcessedTime = std::filesystem::file_time_type::min();
 
 void updateStats(TeamStats& teamStats, Agent* agent, int32_t value, bool isDamage, bool isKill, bool vsPlayer,
-	bool isStrikeDamage, bool isCondiDamage, bool isDownedContribution, bool isKillContribution) {
+	bool isStrikeDamage, bool isCondiDamage, bool isDownedContribution, bool isKillContribution, bool isStrip) {
 	auto& specStats = teamStats.eliteSpecStats[agent->eliteSpec];
 
 	if (isDamage) {
@@ -71,6 +71,17 @@ void updateStats(TeamStats& teamStats, Agent* agent, int32_t value, bool isDamag
 		}
 	}
 
+	if (isStrip) {
+		teamStats.totalStrips++;
+		specStats.totalStrips++;
+
+		if (vsPlayer) {
+			teamStats.totalStripsVsPlayers++;
+			specStats.totalStripsVsPlayers++;
+		}
+	}
+
+	// Handle squad stats if this is the POV team and agent is in a subgroup
 	if (teamStats.isPOVTeam && agent->subgroupNumber > 0) {
 		auto& squadStats = teamStats.squadStats;
 		auto& squadSpecStats = squadStats.eliteSpecStats[agent->eliteSpec];
@@ -127,6 +138,16 @@ void updateStats(TeamStats& teamStats, Agent* agent, int32_t value, bool isDamag
 			if (vsPlayer) {
 				squadStats.totalKillsVsPlayers++;
 				squadSpecStats.totalKillsVsPlayers++;
+			}
+		}
+
+		if (isStrip) {
+			squadStats.totalStrips++;
+			squadSpecStats.totalStrips++;
+
+			if (vsPlayer) {
+				squadStats.totalStripsVsPlayers++;
+				squadSpecStats.totalStripsVsPlayers++;
 			}
 		}
 	}
@@ -357,6 +378,26 @@ bool isDamageInKillSequence(const Agent* agent, const AgentState& state, uint64_
 		currentTime <= deathTime;
 }
 
+bool isTrackedBoon(uint32_t skillId) {
+	switch (skillId) {
+	case static_cast<uint32_t>(BoonIds::Protection):
+	case static_cast<uint32_t>(BoonIds::Regeneration):
+	case static_cast<uint32_t>(BoonIds::Swiftness):
+	case static_cast<uint32_t>(BoonIds::Fury):
+	case static_cast<uint32_t>(BoonIds::Vigor):
+	case static_cast<uint32_t>(BoonIds::Might):
+	case static_cast<uint32_t>(BoonIds::Aegis):
+	case static_cast<uint32_t>(BoonIds::Retaliation):
+	case static_cast<uint32_t>(BoonIds::Stability):
+	case static_cast<uint32_t>(BoonIds::Quickness):
+	case static_cast<uint32_t>(BoonIds::Resistance):
+		return true;
+	default:
+		return false;
+	}
+}
+
+
 void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eventCount,
 	std::unordered_map<uint64_t, Agent>& agentsByAddress,
 	std::unordered_map<uint16_t, Agent*>& playersBySrcInstid,
@@ -376,6 +417,7 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 	std::vector<CombatEvent> allEvents;
 	allEvents.reserve(eventCount);
 
+	// First pass: collect all events
 	for (size_t i = 0; i < eventCount; ++i) {
 		size_t eventOffset = offset + (i * eventSize);
 		if (eventOffset + eventSize > bytes.size()) {
@@ -388,6 +430,7 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 
 	auto agentStates = preProcessAgentStates(allEvents);
 
+	// Process all events
 	for (const auto& event : allEvents) {
 		earliestTime = std::min(earliestTime, event.time);
 		latestTime = std::max(latestTime, event.time);
@@ -439,7 +482,7 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 		}
 	}
 
-	// Set POV team after processing all events
+	// Set POV team
 	std::string povTeam;
 	if (agentsByAddress.find(povAgentID) != agentsByAddress.end()) {
 		Agent& povAgent = agentsByAddress[povAgentID];
@@ -455,6 +498,7 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 		}
 	}
 
+	// Set combat times
 	if (result.combatStartTime == UINT64_MAX) {
 		result.combatStartTime = (logStartTime != UINT64_MAX) ? logStartTime : earliestTime;
 	}
@@ -494,80 +538,122 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 		}
 	}
 
-	// Process damage and kill events
+	// Process damage, kills, and strips events
 	for (const auto& event : allEvents) {
-		if (event.isStateChange == static_cast<uint8_t>(StateChange::None) &&
-			event.isActivation == static_cast<uint8_t>(Activation::None) &&
-			event.isBuffRemove == static_cast<uint8_t>(BuffRemove::None)) {
+		if (event.isStateChange == static_cast<uint8_t>(StateChange::None)) {
+			if (event.isActivation == static_cast<uint8_t>(Activation::None)) {
+				// Handle buff removals (strips)
+				if (event.isBuffRemove != static_cast<uint8_t>(BuffRemove::None)) {
+					// Skip if destination agent is 0 (unknown) - since dst is now our stripper
+					if (event.dstAgent == 0) {
+						continue;
+					}
+					// Skip if it's a self-strip
+					if (event.srcInstid == event.dstInstid) {
+						continue;
+					}
+					// Skip if overstackValue (RemovedDuration) is 0
+					if (event.value == 0) {
+						continue;
+					}
+					// Only count "All" removals of specific boons
+					if (event.isBuffRemove == static_cast<uint8_t>(BuffRemove::All) &&
+						isTrackedBoon(event.skillId)) {
 
-			ResultCode resultCode = static_cast<ResultCode>(event.result);
-
-			if (resultCode == ResultCode::Normal || resultCode == ResultCode::Critical ||
-				resultCode == ResultCode::Glance || resultCode == ResultCode::KillingBlow) {
-
-				int32_t damageValue = 0;
-				bool isStrikeDamage = false;
-				bool isCondiDamage = false;
-
-				if (event.buff == 0) {
-					damageValue = event.value;
-					isStrikeDamage = true;
-				}
-				else if (event.buff == 1) {
-					damageValue = event.buffDmg;
-					isCondiDamage = true;
-				}
-
-				if (damageValue > 0) {
-					auto srcIt = playersBySrcInstid.find(event.srcInstid);
-					if (srcIt != playersBySrcInstid.end()) {
-						Agent* attacker = srcIt->second;
-						const std::string& attackerTeam = attacker->team;
-
-						if (attackerTeam != "Unknown") {
-							bool vsPlayer = false;
-							bool isDownedContribution = false;
-							bool isKillContribution = false;
-
-							auto dstIt = agentsByInstid.find(event.dstInstid);
-							if (dstIt != agentsByInstid.end()) {
-								Agent* target = dstIt->second;
-								if (target->team != "Unknown") {
-									vsPlayer = true;
-									auto stateIt = agentStates.find(target->address);
-									if (stateIt != agentStates.end()) {
-										isDownedContribution = isDamageInDownSequence(target, stateIt->second, event.time);
-										isKillContribution = isDamageInKillSequence(target, stateIt->second, event.time);
+						// Look up the destination agent (stripper) instead of source
+						auto dstIt = playersBySrcInstid.find(event.dstInstid);
+						if (dstIt != playersBySrcInstid.end()) {
+							Agent* stripper = dstIt->second;
+							const std::string& stripperTeam = stripper->team;
+							if (stripperTeam != "Unknown") {
+								bool vsPlayer = false;
+								// Now check the source agent (target) instead of destination
+								auto srcIt = agentsByInstid.find(event.srcInstid);
+								if (srcIt != agentsByInstid.end()) {
+									Agent* target = srcIt->second;
+									if (target->team != "Unknown") {
+										vsPlayer = true;
 									}
 								}
+								updateStats(result.teamStats[stripperTeam], stripper, 0, false, false,
+									vsPlayer, false, false, false, false, true);
 							}
-
-							updateStats(result.teamStats[attackerTeam], attacker, damageValue, true, false,
-								vsPlayer, isStrikeDamage, isCondiDamage, isDownedContribution, isKillContribution);
 						}
 					}
 				}
-			}
+				// Handle damage and kills
+				else if (event.isBuffRemove == static_cast<uint8_t>(BuffRemove::None)) {
+					ResultCode resultCode = static_cast<ResultCode>(event.result);
 
-			// Process KillingBlow events
-			if (resultCode == ResultCode::KillingBlow) {
-				auto srcIt = playersBySrcInstid.find(event.srcInstid);
-				if (srcIt != playersBySrcInstid.end()) {
-					Agent* attacker = srcIt->second;
-					const std::string& attackerTeam = attacker->team;
+					if (resultCode == ResultCode::Normal || resultCode == ResultCode::Critical ||
+						resultCode == ResultCode::Glance || resultCode == ResultCode::KillingBlow) {
 
-					if (attackerTeam != "Unknown") {
-						auto dstIt = agentsByInstid.find(event.dstInstid);
-						if (dstIt != agentsByInstid.end()) {
-							Agent* target = dstIt->second;
-							const std::string& targetTeam = target->team;
+						int32_t damageValue = 0;
+						bool isStrikeDamage = false;
+						bool isCondiDamage = false;
 
-							if (targetTeam != "Unknown") {
-								result.teamStats[targetTeam].totalDeathsFromKillingBlows++;
-								if (result.teamStats[targetTeam].isPOVTeam && target->subgroupNumber > 0) {
-									result.teamStats[targetTeam].squadStats.totalDeathsFromKillingBlows++;
+						if (event.buff == 0) {
+							damageValue = event.value;
+							isStrikeDamage = true;
+						}
+						else if (event.buff == 1) {
+							damageValue = event.buffDmg;
+							isCondiDamage = true;
+						}
+
+						if (damageValue > 0) {
+							auto srcIt = playersBySrcInstid.find(event.srcInstid);
+							if (srcIt != playersBySrcInstid.end()) {
+								Agent* attacker = srcIt->second;
+								const std::string& attackerTeam = attacker->team;
+
+								if (attackerTeam != "Unknown") {
+									bool vsPlayer = false;
+									bool isDownedContribution = false;
+									bool isKillContribution = false;
+
+									auto dstIt = agentsByInstid.find(event.dstInstid);
+									if (dstIt != agentsByInstid.end()) {
+										Agent* target = dstIt->second;
+										if (target->team != "Unknown") {
+											vsPlayer = true;
+											auto stateIt = agentStates.find(target->address);
+											if (stateIt != agentStates.end()) {
+												isDownedContribution = isDamageInDownSequence(target, stateIt->second, event.time);
+												isKillContribution = isDamageInKillSequence(target, stateIt->second, event.time);
+											}
+										}
+									}
+
+									updateStats(result.teamStats[attackerTeam], attacker, damageValue, true, false,
+										vsPlayer, isStrikeDamage, isCondiDamage, isDownedContribution, isKillContribution, false);
 								}
-								updateStats(result.teamStats[attackerTeam], attacker, 0, false, true, true, false, false, false, false);
+							}
+						}
+
+						// Process KillingBlow events
+						if (resultCode == ResultCode::KillingBlow) {
+							auto srcIt = playersBySrcInstid.find(event.srcInstid);
+							if (srcIt != playersBySrcInstid.end()) {
+								Agent* attacker = srcIt->second;
+								const std::string& attackerTeam = attacker->team;
+
+								if (attackerTeam != "Unknown") {
+									auto dstIt = agentsByInstid.find(event.dstInstid);
+									if (dstIt != agentsByInstid.end()) {
+										Agent* target = dstIt->second;
+										const std::string& targetTeam = target->team;
+
+										if (targetTeam != "Unknown") {
+											result.teamStats[targetTeam].totalDeathsFromKillingBlows++;
+											if (result.teamStats[targetTeam].isPOVTeam && target->subgroupNumber > 0) {
+												result.teamStats[targetTeam].squadStats.totalDeathsFromKillingBlows++;
+											}
+											updateStats(result.teamStats[attackerTeam], attacker, 0, false, true,
+												true, false, false, false, false, false);
+										}
+									}
+								}
 							}
 						}
 					}

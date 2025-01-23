@@ -379,7 +379,31 @@ enum class BuffRemove : uint8_t {
     Manual = 3
 };
 
+enum class BuffCategory : uint8_t {
+    Boon = 0,
+    Any = 1,
+    Condition = 2,
+    Food = 4,
+    Upgrade = 6,
+    Boost = 8,
+    Trait = 11,
+    Enhancement = 13,
+    Stance = 16,
+};
 
+enum class BoonIds : uint32_t {
+    Protection = 717,
+    Regeneration = 718,
+    Swiftness = 719,
+    Fury = 725,
+    Vigor = 726,
+    Might = 740,
+    Aegis = 743,
+    Retaliation = 873,
+    Stability = 1122,
+    Quickness = 1187,
+    Resistance = 26980
+};
 
 // Maps
 extern std::unordered_map<int, std::string> professions;

@@ -146,7 +146,7 @@ void BarTemplateRenderer::RenderTooltipStats(
     bool vsLoggedPlayersOnly,
     int playerCount
 ) {
-    ImGui::Text("Players: %d", playerCount);
+    ImGui::Text("Players: %d", stats.totalStrips);
     ImGui::Text("Damage: %s", formatDamage(vsLoggedPlayersOnly ?
         stats.totalDamageVsPlayers : stats.totalDamage).c_str());
     ImGui::Text("Down Contribution: %s", formatDamage(vsLoggedPlayersOnly ?

@@ -15,7 +15,6 @@
 #include <string>
 #include <cstdio>
 
-const char* ADDON_WINDOW_VISIBLE = "KB_MISTINSIGHT_WINDOW_VISIBLE";
 
 void initMaps() {
     // Map of profession IDs to profession names

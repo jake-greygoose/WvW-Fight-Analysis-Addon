@@ -305,6 +305,26 @@ void RenderTeamData(const TeamStats& teamData, const MainWindowSettings* setting
 			ImGui::Text("%d", totalDownedToDisplay);
 		}
 	}
+	// Downs Display
+	uint32_t totalStripsToDisplay = useSquadStats ? teamData.squadStats.totalStrips : teamData.totalStrips;
+
+	if (settings->showTeamDowned) {
+		if (settings->showClassIcons) {
+			if (Downed && Downed->Resource) {
+				ImGui::Image(Downed->Resource, ImVec2(sz, sz));
+				ImGui::SameLine(0, 5);
+			}
+			else {
+				Downed = APIDefs->Textures.GetOrCreateFromResource("DOWNED_ICON", DOWNED, hSelf);
+			}
+		}
+		if (settings->showClassNames) {
+			ImGui::Text("Strips:  %d", totalStripsToDisplay);
+		}
+		else {
+			ImGui::Text("%d", totalStripsToDisplay);
+		}
+	}
 
 	// Damage Display
 	uint64_t totalDamageToDisplay = 0;
