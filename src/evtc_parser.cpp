@@ -456,7 +456,7 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 
 ParsedData parseEVTCFile(const std::string& filePath) {
     ParsedData result;
-    std::vector<char> bytes = extractZipFile(filePath);
+    std::vector<char> bytes = extractZipFile(CP1252_to_UTF8(filePath));
     if (bytes.size() < 16) {
         APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME, "EVTC file is too small");
         return result;

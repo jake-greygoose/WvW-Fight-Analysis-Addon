@@ -15,11 +15,10 @@
 std::vector<char> extractZipFile(const std::string& filePath) {
     try {
         LogMessage(ELogLevel_DEBUG, ("Attempting to extract zip file: " + filePath).c_str());
-
         int err = 0;
         zip* z = zip_open(filePath.c_str(), 0, &err);
         if (!z) {
-            std::string errMsg = "Failed to open zip file. Error code: " + std::to_string(err);
+            std::string errMsg = "Failed to open zip file. Error code: " + std::to_string(err) + " " + filePath;
             switch (err) {
             case ZIP_ER_NOENT:
                 errMsg += " (File does not exist)";

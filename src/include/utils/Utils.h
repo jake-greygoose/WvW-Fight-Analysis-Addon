@@ -20,6 +20,7 @@ std::filesystem::path getArcPath();
 
 Texture** getTextureInfo(const std::string& eliteSpec, int* outResourceId);
 std::vector<char> extractZipFile(const std::string& filePath);
+std::string CP1252_to_UTF8(const std::string& byte_array);
 std::string formatDamage(double damage);
 std::string generateLogDisplayName(const std::string& filename, uint64_t combatStartMs, uint64_t combatEndMs);
 std::string formatDuration(uint64_t milliseconds);
