@@ -6,6 +6,8 @@
 #include "settings/Settings.h"
 #include "utils/Utils.h"
 #include "parser/evtc_parser.h"
+#include "integration/MursaatPanelIntegration.h"
+
 
 
 // Function prototypes
@@ -69,6 +71,9 @@ void AddonLoad(AddonAPI* aApi) {
     APIDefs->InputBinds.RegisterWithString("LOG_INDEX_DOWN", ProcessKeybinds, "(null)");
     APIDefs->InputBinds.RegisterWithString("SHOW_SQUAD_PLAYERS_ONLY", ProcessKeybinds, "(null)");
     directoryMonitorThread = std::thread(monitorDirectory, Settings::logHistorySize, Settings::pollIntervalMilliseconds);
+    
+    InitializeMursaatPanelIntegration();
+    
     APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME, "Addon loaded successfully.");
 }
 
@@ -105,6 +110,8 @@ void AddonUnload() {
     APIDefs->InputBinds.Deregister("LOG_INDEX_UP");
     APIDefs->InputBinds.Deregister("LOG_INDEX_DOWN");
     APIDefs->InputBinds.Deregister("SHOW_SQUAD_PLAYERS_ONLY");
+    
+    CleanupMursaatPanelIntegration();
     APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME, "Addon unloaded successfully.");
 }
 
@@ -489,8 +496,8 @@ extern "C" __declspec(dllexport) AddonDefinition * GetAddonDef()
     AddonDef.Version.Major = 1;
     AddonDef.Version.Minor = 1;
     AddonDef.Version.Build = 0;
-    AddonDef.Version.Revision = 7;
-    AddonDef.Author = "Unreal";
+    AddonDef.Version.Revision = 9;
+    AddonDef.Author = "Unreal.2358";
     AddonDef.Description = "WvW log analysis tool.";
     AddonDef.Load = AddonLoad;
     AddonDef.Unload = AddonUnload;

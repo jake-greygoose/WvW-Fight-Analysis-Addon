@@ -11,13 +11,33 @@
 #include <Windows.h>
 
 
+// Helper function to convert wide strings to UTF-8
+std::string wideToUtf8(const std::wstring& wstr) {
+    if (wstr.empty()) return std::string();
+
+    int size = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    if (size <= 0) return std::string();
+
+    std::vector<char> buffer(size);
+    WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, buffer.data(), size, nullptr, nullptr);
+
+    return std::string(buffer.data());
+}
+
+// Get UTF-8 representation of a filesystem path
+std::string getUtf8Path(const std::filesystem::path& path) {
+    return wideToUtf8(path.wstring());
+}
+
 // File operation implementations
-std::vector<char> extractZipFile(const std::string& filePath) {
+std::vector<char> extractZipFile(const std::filesystem::path& filePath) {
     try {
-        LogMessage(ELogLevel_DEBUG, ("Attempting to extract zip file: " + filePath).c_str());
+        std::string utf8Path = getUtf8Path(filePath);
+        LogMessage(ELogLevel_DEBUG, ("Attempting to extract zip file: " + utf8Path).c_str());
 
         int err = 0;
-        zip* z = zip_open(filePath.c_str(), 0, &err);
+        // libzip uses UTF-8 paths
+        zip* z = zip_open(utf8Path.c_str(), 0, &err);
         if (!z) {
             std::string errMsg = "Failed to open zip file. Error code: " + std::to_string(err);
             switch (err) {
@@ -78,7 +98,7 @@ std::vector<char> extractZipFile(const std::string& filePath) {
             zip_fclose(f);
             zip_close(z);
 
-            LogMessage(ELogLevel_DEBUG, ("Successfully extracted zip file: " + filePath +
+            LogMessage(ELogLevel_DEBUG, ("Successfully extracted zip file: " + utf8Path +
                 " (" + std::to_string(buffer.size()) + " bytes)").c_str());
             return buffer;
         }
@@ -96,9 +116,10 @@ std::vector<char> extractZipFile(const std::string& filePath) {
     }
 }
 
-void waitForFile(const std::string& filePath) {
+void waitForFile(const std::filesystem::path& filePath) {
     try {
-        LogMessage(ELogLevel_DEBUG, ("Starting to wait for file: " + filePath).c_str());
+        std::string utf8Path = getUtf8Path(filePath);
+        LogMessage(ELogLevel_DEBUG, ("Starting to wait for file: " + utf8Path).c_str());
 
         const int MAX_RETRIES = 30; // 15 seconds total max wait time
         const int RETRY_DELAY_MS = 500;
@@ -108,8 +129,8 @@ void waitForFile(const std::string& filePath) {
 
         while (retries < MAX_RETRIES) {
             try {
-                hFile = CreateFile(
-                    filePath.c_str(),
+                hFile = CreateFileW(
+                    filePath.wstring().c_str(),
                     GENERIC_READ,
                     FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                     nullptr,
@@ -161,7 +182,7 @@ void waitForFile(const std::string& filePath) {
 
         if (retries >= MAX_RETRIES) {
             APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-                ("Timeout waiting for file to stabilize: " + filePath).c_str());
+                ("Timeout waiting for file to stabilize: " + utf8Path).c_str());
         }
     }
     catch (const std::exception& e) {
@@ -179,6 +200,7 @@ std::wstring getCanonicalPath(const std::filesystem::path& path)
 std::filesystem::path getArcPath()
 {
     std::filesystem::path filename = APIDefs->Paths.GetAddonDirectory("arcdps\\arcdps.ini");
+    std::string utf8Filename = getUtf8Path(filename);
 
     char buffer[256] = { 0 };
 
@@ -188,7 +210,7 @@ std::filesystem::path getArcPath()
         "",
         buffer,
         sizeof(buffer),
-        filename.string().c_str()
+        utf8Filename.c_str()
     );
 
     std::filesystem::path boss_encounter_path = buffer;
@@ -206,8 +228,10 @@ bool isValidEVTCFile(const std::filesystem::path& dirPath, const std::filesystem
         return false;
     }
 
-    bool dirPathIsWvW = dirPath.filename().string().find("WvW") != std::string::npos;
-    bool dirPathIs1 = dirPath.filename().string() == "1";
+    // Use UTF-8 strings for comparison
+    std::string dirPathFilename = getUtf8Path(dirPath.filename());
+    bool dirPathIsWvW = dirPathFilename.find("WvW") != std::string::npos;
+    bool dirPathIs1 = dirPathFilename == "1";
 
     std::vector<std::filesystem::path> components;
     if (!dirPath.has_root_path() && !dirPathIsWvW && !dirPathIs1) {
@@ -219,7 +243,8 @@ bool isValidEVTCFile(const std::filesystem::path& dirPath, const std::filesystem
 
     int wvwIndex = -1;
     for (size_t i = 0; i < components.size(); ++i) {
-        if (components[i].string().find("WvW") != std::string::npos) {
+        std::string compStr = getUtf8Path(components[i]);
+        if (compStr.find("WvW") != std::string::npos) {
             wvwIndex = static_cast<int>(i);
             break;
         }
@@ -228,7 +253,8 @@ bool isValidEVTCFile(const std::filesystem::path& dirPath, const std::filesystem
     int dir1Index = -1;
     if (wvwIndex == -1) {
         for (size_t i = 0; i < components.size(); ++i) {
-            if (components[i].string() == "1") {
+            std::string compStr = getUtf8Path(components[i]);
+            if (compStr == "1") {
                 dir1Index = static_cast<int>(i);
                 break;
             }
@@ -251,6 +277,7 @@ bool isValidEVTCFile(const std::filesystem::path& dirPath, const std::filesystem
 
     return false;
 }
+
 
 // File system monitoring implementations
 bool isRunningUnderWine()
@@ -287,6 +314,7 @@ bool isRunningUnderWine()
 
     return false;
 }
+
 
 void scanForNewFiles(const std::filesystem::path& dirPath, std::unordered_set<std::wstring>& processedFiles)
 {
@@ -327,7 +355,6 @@ void scanForNewFiles(const std::filesystem::path& dirPath, std::unordered_set<st
                 continue;
             }
 
-            // Use the path version of processEVTCFile
             processEVTCFile(filePath);
 
             processedFiles.insert(absolutePath);
@@ -354,26 +381,26 @@ void parseInitialLogs(std::unordered_set<std::wstring>& processedFiles, size_t n
         {
             dirPath = std::filesystem::path(Settings::LogDirectoryPath);
             APIDefs->Log(ELogLevel_INFO, ADDON_NAME,
-                ("Custom log path specified: " + dirPath.string()).c_str());
+                ("Custom log path specified: " + Settings::LogDirectoryPath).c_str());
             if (!std::filesystem::exists(dirPath) || !std::filesystem::is_directory(dirPath))
             {
                 APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-                    ("Specified log directory does not exist: " + dirPath.string()).c_str());
+                    ("Specified log directory does not exist: " + Settings::LogDirectoryPath).c_str());
                 return;
             }
         }
         else
         {
-            char documentsPath[MAX_PATH];
-            if (FAILED(SHGetFolderPath(nullptr, CSIDL_PERSONAL, nullptr, SHGFP_TYPE_CURRENT, documentsPath)))
+            wchar_t documentsPathW[MAX_PATH];
+            if (FAILED(SHGetFolderPathW(nullptr, CSIDL_PERSONAL, nullptr, SHGFP_TYPE_CURRENT, documentsPathW)))
             {
                 APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
                     "Failed to get path to user's Documents folder.");
                 return;
             }
 
-            dirPath = std::filesystem::path(documentsPath) / "Guild Wars 2" / "addons" /
-                "arcdps" / "arcdps.cbtlogs";
+            dirPath = std::filesystem::path(documentsPathW) / L"Guild Wars 2" / L"addons" /
+                L"arcdps" / L"arcdps.cbtlogs";
         }
 
         std::vector<std::filesystem::path> zevtcFiles;
@@ -392,8 +419,9 @@ void parseInitialLogs(std::unordered_set<std::wstring>& processedFiles, size_t n
 
         if (zevtcFiles.empty())
         {
+            std::string utf8DirPath = getUtf8Path(dirPath);
             APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-                ("No valid .zevtc files found in directory: " + dirPath.string()).c_str());
+                ("No valid .zevtc files found in directory: " + utf8DirPath).c_str());
             return;
         }
 
@@ -409,12 +437,13 @@ void parseInitialLogs(std::unordered_set<std::wstring>& processedFiles, size_t n
         for (size_t i = 0; i < numFilesToParse; ++i)
         {
             const std::filesystem::path& filePath = zevtcFiles[i];
-            waitForFile(filePath.string());
+            waitForFile(filePath);
 
             std::wstring absolutePath = std::filesystem::absolute(filePath).wstring();
 
             if (processedFiles.find(absolutePath) == processedFiles.end())
             {
+                std::string utf8Path = getUtf8Path(filePath);
                 ParsedLog log;
                 log.filename = filePath.filename().string();
                 log.data = parseEVTCFile(filePath.string());
@@ -454,8 +483,9 @@ void parseInitialLogs(std::unordered_set<std::wstring>& processedFiles, size_t n
             }
             else
             {
+                std::string utf8Path = getUtf8Path(filePath);
                 APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
-                    ("File already processed during initial parsing: " + filePath.string()).c_str());
+                    ("File already processed during initial parsing: " + utf8Path).c_str());
             }
         }
 
@@ -472,6 +502,7 @@ void directoryMonitor(const std::filesystem::path& dirPath, size_t numLogsToPars
 {
     try
     {
+        // Use wide string for Windows API
         HANDLE hDir = CreateFileW(
             dirPath.wstring().c_str(),
             FILE_LIST_DIRECTORY,
@@ -483,8 +514,9 @@ void directoryMonitor(const std::filesystem::path& dirPath, size_t numLogsToPars
 
         if (hDir == INVALID_HANDLE_VALUE)
         {
+            std::string utf8DirPath = getUtf8Path(dirPath);
             APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-                ("Failed to open directory for monitoring: " + dirPath.string()).c_str());
+                ("Failed to open directory for monitoring: " + utf8DirPath).c_str());
             return;
         }
 
@@ -625,8 +657,10 @@ void monitorDirectory(size_t numLogsToParse, size_t pollIntervalMilliseconds)
 
         if (firstInstall) {
             std::filesystem::path arcPath = getArcPath();
-            Settings::LogDirectoryPath = arcPath.string();
+            // Store UTF-8 path string
+            Settings::LogDirectoryPath = getUtf8Path(arcPath);
 
+            // Make sure Settings::LogDirectoryPathC can handle UTF-8
             strncpy(Settings::LogDirectoryPathC, Settings::LogDirectoryPath.c_str(), sizeof(Settings::LogDirectoryPathC) - 1);
             Settings::LogDirectoryPathC[sizeof(Settings::LogDirectoryPathC) - 1] = '\0';
 
@@ -641,22 +675,22 @@ void monitorDirectory(size_t numLogsToParse, size_t pollIntervalMilliseconds)
             if (!std::filesystem::exists(dirPath) || !std::filesystem::is_directory(dirPath))
             {
                 APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-                    ("Specified log directory does not exist: " + dirPath.string()).c_str());
+                    ("Specified log directory does not exist: " + Settings::LogDirectoryPath).c_str());
                 return;
             }
         }
         else
         {
-            char documentsPath[MAX_PATH];
-            if (FAILED(SHGetFolderPath(nullptr, CSIDL_PERSONAL, nullptr, SHGFP_TYPE_CURRENT, documentsPath)))
+            wchar_t documentsPathW[MAX_PATH];
+            if (FAILED(SHGetFolderPathW(nullptr, CSIDL_PERSONAL, nullptr, SHGFP_TYPE_CURRENT, documentsPathW)))
             {
                 APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
                     "Failed to get path to user's Documents folder.");
                 return;
             }
 
-            dirPath = std::filesystem::path(documentsPath) / "Guild Wars 2" / "addons" /
-                "arcdps" / "arcdps.cbtlogs";
+            dirPath = std::filesystem::path(documentsPathW) / L"Guild Wars 2" / L"addons" /
+                L"arcdps" / L"arcdps.cbtlogs";
         }
 
         // Determine if we're running under Wine
@@ -691,4 +725,12 @@ void monitorDirectory(size_t numLogsToParse, size_t pollIntervalMilliseconds)
         APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
             ("Exception in directory monitoring thread: " + std::string(ex.what())).c_str());
     }
+}
+
+std::vector<char> extractZipFile(const std::string& filePath) {
+    return extractZipFile(std::filesystem::path(filePath));
+}
+
+void waitForFile(const std::string& filePath) {
+    waitForFile(std::filesystem::path(filePath));
 }

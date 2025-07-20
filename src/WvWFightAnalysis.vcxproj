@@ -200,6 +200,7 @@
     <ClInclude Include="include\gui\windows\AggregateWindow.h" />
     <ClInclude Include="include\gui\windows\MainWindow.h" />
     <ClInclude Include="include\gui\windows\WidgetWindow.h" />
+    <ClInclude Include="include\integration\MursaatPanelIntegration.h" />
     <ClInclude Include="include\parser\boon_strip_skills.h" />
     <ClInclude Include="include\parser\boon_strip_tracker.h" />
     <ClInclude Include="include\parser\file_helpers.h" />
@@ -218,6 +219,7 @@
     <ClCompile Include="imgui\imgui_draw.cpp" />
     <ClCompile Include="imgui\imgui_tables.cpp" />
     <ClCompile Include="imgui\imgui_widgets.cpp" />
+    <ClCompile Include="src\integration\MursaatPanelIntegration.cpp" />
     <ClCompile Include="src\parser\boon_strip_skills.cpp" />
     <ClCompile Include="src\parser\boon_strip_tracker.cpp" />
     <ClCompile Include="src\parser\file_helpers.cpp" />

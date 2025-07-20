@@ -235,10 +235,16 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
         case StateChange::TeamChange: {
             uint32_t teamID = static_cast<uint32_t>(event.value);
             if (teamID != 0 && agentsByAddress.find(event.srcAgent) != agentsByAddress.end()) {
+                Agent& agent = agentsByAddress[event.srcAgent];
+                agent.teamID = teamID;
                 auto it = teamIDs.find(teamID);
                 if (it != teamIDs.end()) {
-                    Agent& agent = agentsByAddress[event.srcAgent];
                     agent.team = it->second;
+                }
+                else {
+                    agent.team = "Unknown";
+                    LogMessage(ELogLevel_DEBUG, ("Unknown team ID encountered: " + std::to_string(teamID) +
+                        " for agent: " + agent.name).c_str());
                 }
             }
             break;
@@ -428,8 +434,14 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
         }
     }
 
-    // Collect statistics
+    // Collect statistics (deduplicated by agent's unique address)
+    std::unordered_set<uint64_t> uniqueAgentAddresses;
     for (const auto& [srcInstid, agent] : playersBySrcInstid) {
+        // Skip if we've already processed this agent.
+        if (uniqueAgentAddresses.find(agent->address) != uniqueAgentAddresses.end())
+            continue;
+        uniqueAgentAddresses.insert(agent->address);
+
         if (agent->team != "Unknown") {
             auto& teamStats = result.teamStats[agent->team];
             auto& specStats = teamStats.eliteSpecStats[agent->eliteSpec];
@@ -447,16 +459,17 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
             }
         }
         else {
-            APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
-                ("Agent with unknown team - InstID: " + std::to_string(srcInstid) +
-                    ", Name: " + agent->name).c_str());
+            LogMessage(ELogLevel_DEBUG, ("Agent with unknown team - InstID: " + std::to_string(srcInstid) +
+                ", Name: " + agent->name +
+                ", Team ID: " + std::to_string(agent->teamID)).c_str());
         }
     }
 }
 
-ParsedData parseEVTCFile(const std::string& filePath) {
+
+ParsedData parseEVTCFile(const std::string& utf8FilePath) {
     ParsedData result;
-    std::vector<char> bytes = extractZipFile(filePath);
+    std::vector<char> bytes = extractZipFile(utf8FilePath);
     if (bytes.size() < 16) {
         APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME, "EVTC file is too small");
         return result;
@@ -494,6 +507,13 @@ ParsedData parseEVTCFile(const std::string& filePath) {
 
     APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME, ("Header: " + headerStr + ", Revision: " + std::to_string(revision) + ", Fight Instance ID: " + std::to_string(fightId)).c_str());
     int evtcVersion = std::stoi(headerStr.substr(4));
+
+
+    if (evtcVersion == 20250420) {
+        APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME, ("Cannot parse EVTC Version 20250420 teamID is bugged, logs will be skipped until next revision"));
+        APIDefs->UI.SendAlert("Logs from arcdps version 20250420 cannot be parsed, wait for updated version");
+        return ParsedData(); // Return an empty result
+    }
 
     if (evtcVersion < 20240612) {
         APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME, ("Cannot parse EVTC Version is pre TeamChangeOnDespawn / 20240612"));

@@ -99,6 +99,7 @@ struct Agent {
     std::string profession;
     std::string eliteSpec;
     std::string team = "Unknown";
+    uint32_t teamID = 0;
 };
 
 struct SpecStats {

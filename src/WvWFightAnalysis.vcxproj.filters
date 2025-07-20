@@ -31,6 +31,7 @@
     <ClCompile Include="src\parser\statistics_helper.cpp" />
     <ClCompile Include="src\parser\boon_strip_skills.cpp" />
     <ClCompile Include="src\parser\file_helpers.cpp" />
+    <ClCompile Include="src\integration\MursaatPanelIntegration.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="imgui\imstb_truetype.h">
@@ -64,6 +65,7 @@
     <ClInclude Include="include\parser\boon_strip_skills.h" />
     <ClInclude Include="include\parser\statistics_helper.h" />
     <ClInclude Include="include\parser\file_helpers.h" />
+    <ClInclude Include="include\integration\MursaatPanelIntegration.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="imgui">
