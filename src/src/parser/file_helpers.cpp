@@ -4,13 +4,15 @@
 #include "shared/Shared.h"
 #include "utils/Utils.h"
 #include "evtc_parser.h"
-#include <zip.h>
+#include "thirdparty/miniz_cpp.hpp"
 #include <thread>
 #include <chrono>
 #include <shlobj.h>
+
 #include <Windows.h>
-
-
+#include <cstring>
+#include <cstdint>
+#include <fstream>
 // Helper function to convert wide strings to UTF-8
 std::string wideToUtf8(const std::wstring& wstr) {
     if (wstr.empty()) return std::string();
@@ -35,79 +37,60 @@ std::vector<char> extractZipFile(const std::filesystem::path& filePath) {
         std::string utf8Path = getUtf8Path(filePath);
         LogMessage(ELogLevel_DEBUG, ("Attempting to extract zip file: " + utf8Path).c_str());
 
-        int err = 0;
-        // libzip uses UTF-8 paths
-        zip* z = zip_open(utf8Path.c_str(), 0, &err);
-        if (!z) {
-            std::string errMsg = "Failed to open zip file. Error code: " + std::to_string(err);
-            switch (err) {
-            case ZIP_ER_NOENT:
-                errMsg += " (File does not exist)";
-                break;
-            case ZIP_ER_NOZIP:
-                errMsg += " (Not a zip file)";
-                break;
-            case ZIP_ER_INVAL:
-                errMsg += " (Invalid argument)";
-                break;
-            case ZIP_ER_MEMORY:
-                errMsg += " (Memory allocation failed)";
-                break;
+        miniz_cpp::zip_file zip;
+        if (!zip.load(filePath)) {
+            APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
+                ("Failed to open zip archive: " + utf8Path).c_str());
+            return {};
+        }
+
+        mz_uint numFiles = zip.get_num_files();
+        if (numFiles == 0) {
+            APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
+                "Zip archive contains no files.");
+            return {};
+        }
+
+        mz_zip_archive_file_stat fileStat{};
+        mz_uint targetIndex = MZ_UINT32_MAX;
+
+        for (mz_uint i = 0; i < numFiles; ++i) {
+            if (!zip.file_stat(i, fileStat)) {
+                continue;
             }
-            APIDefs->Log(ELogLevel_WARNING, ADDON_NAME, errMsg.c_str());
-            return std::vector<char>();
+            if (fileStat.m_is_directory) {
+                continue;
+            }
+            targetIndex = i;
+            break;
         }
 
-        zip_stat_t zstat;
-        zip_stat_init(&zstat);
-        if (zip_stat_index(z, 0, 0, &zstat) != 0) {
+        if (targetIndex == MZ_UINT32_MAX) {
             APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-                "Failed to get zip file statistics");
-            zip_close(z);
-            return std::vector<char>();
+                "Zip archive does not contain a valid file entry.");
+            return {};
         }
 
-        // Check for reasonable file size to prevent memory issues
-        if (zstat.size > 100 * 1024 * 1024) { // 100MB limit
+        if (fileStat.m_uncomp_size > 100 * 1024 * 1024) {
             APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-                ("Zip file too large: " + std::to_string(zstat.size) + " bytes").c_str());
-            zip_close(z);
-            return std::vector<char>();
+                ("Uncompressed data too large: " + std::to_string(static_cast<unsigned long long>(fileStat.m_uncomp_size)) + " bytes").c_str());
+            return {};
         }
 
+        std::vector<char> result;
         try {
-            std::vector<char> buffer(zstat.size);
-            zip_file* f = zip_fopen_index(z, 0, 0);
-            if (!f) {
-                APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-                    "Failed to open file in zip archive");
-                zip_close(z);
-                return std::vector<char>();
-            }
-
-            zip_int64_t bytesRead = zip_fread(f, buffer.data(), zstat.size);
-            if (bytesRead < 0 || static_cast<zip_uint64_t>(bytesRead) != zstat.size) {
-                APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-                    ("Failed to read complete file. Expected: " + std::to_string(zstat.size) +
-                        " bytes, Read: " + std::to_string(bytesRead) + " bytes").c_str());
-                zip_fclose(f);
-                zip_close(z);
-                return std::vector<char>();
-            }
-
-            zip_fclose(f);
-            zip_close(z);
-
-            LogMessage(ELogLevel_DEBUG, ("Successfully extracted zip file: " + utf8Path +
-                " (" + std::to_string(buffer.size()) + " bytes)").c_str());
-            return buffer;
+            result = zip.read(targetIndex);
         }
-        catch (const std::bad_alloc& e) {
+        catch (const miniz_cpp::zip_exception& ex) {
             APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-                ("Memory allocation failed for zip buffer: " + std::string(e.what())).c_str());
-            zip_close(z);
-            return std::vector<char>();
+                ("Failed to extract file from zip archive: " + std::string(ex.what())).c_str());
+            return {};
         }
+
+        LogMessage(ELogLevel_DEBUG, ("Successfully extracted zip file: " + utf8Path +
+            " (" + std::to_string(result.size()) + " bytes)").c_str());
+
+        return result;
     }
     catch (const std::exception& e) {
         APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
@@ -192,11 +175,6 @@ void waitForFile(const std::filesystem::path& filePath) {
     }
 }
 
-std::wstring getCanonicalPath(const std::filesystem::path& path)
-{
-    return std::filesystem::weakly_canonical(path).wstring();
-}
-
 std::filesystem::path getArcPath()
 {
     std::filesystem::path filename = APIDefs->Paths.GetAddonDirectory("arcdps\\arcdps.ini");
@@ -217,67 +195,6 @@ std::filesystem::path getArcPath()
 
     return boss_encounter_path;
 }
-
-bool isValidEVTCFile(const std::filesystem::path& dirPath, const std::filesystem::path& filePath)
-{
-    std::filesystem::path relativePath;
-    try {
-        relativePath = std::filesystem::relative(filePath.parent_path(), dirPath);
-    }
-    catch (...) {
-        return false;
-    }
-
-    // Use UTF-8 strings for comparison
-    std::string dirPathFilename = getUtf8Path(dirPath.filename());
-    bool dirPathIsWvW = dirPathFilename.find("WvW") != std::string::npos;
-    bool dirPathIs1 = dirPathFilename == "1";
-
-    std::vector<std::filesystem::path> components;
-    if (!dirPath.has_root_path() && !dirPathIsWvW && !dirPathIs1) {
-        components.push_back(dirPath.filename());
-    }
-    for (const auto& part : relativePath) {
-        components.push_back(part);
-    }
-
-    int wvwIndex = -1;
-    for (size_t i = 0; i < components.size(); ++i) {
-        std::string compStr = getUtf8Path(components[i]);
-        if (compStr.find("WvW") != std::string::npos) {
-            wvwIndex = static_cast<int>(i);
-            break;
-        }
-    }
-
-    int dir1Index = -1;
-    if (wvwIndex == -1) {
-        for (size_t i = 0; i < components.size(); ++i) {
-            std::string compStr = getUtf8Path(components[i]);
-            if (compStr == "1") {
-                dir1Index = static_cast<int>(i);
-                break;
-            }
-        }
-    }
-
-    if (dirPathIsWvW) {
-        return components.size() <= 2;
-    }
-    if (wvwIndex != -1) {
-        return (components.size() - (wvwIndex + 1)) <= 2;
-    }
-
-    if (dirPathIs1) {
-        return components.size() <= 2;
-    }
-    if (dir1Index != -1) {
-        return (components.size() - (dir1Index + 1)) <= 2;
-    }
-
-    return false;
-}
-
 
 // File system monitoring implementations
 bool isRunningUnderWine()
@@ -316,417 +233,6 @@ bool isRunningUnderWine()
 }
 
 
-void scanForNewFiles(const std::filesystem::path& dirPath, std::unordered_set<std::wstring>& processedFiles)
-{
-    try
-    {
-        std::vector<std::filesystem::path> zevtcFiles;
-
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(dirPath))
-        {
-            if (entry.is_regular_file() && entry.path().extension() == L".zevtc")
-            {
-                if (isValidEVTCFile(dirPath, entry.path()))
-                {
-                    zevtcFiles.push_back(entry.path());
-                }
-            }
-        }
-
-        std::sort(zevtcFiles.begin(), zevtcFiles.end(),
-            [](const std::filesystem::path& a, const std::filesystem::path& b)
-            {
-                return std::filesystem::last_write_time(a) > std::filesystem::last_write_time(b);
-            });
-
-        for (const auto& filePath : zevtcFiles)
-        {
-            auto fileTime = std::filesystem::last_write_time(filePath);
-
-            if (fileTime <= maxProcessedTime)
-            {
-                break;
-            }
-
-            std::wstring absolutePath = std::filesystem::absolute(filePath).wstring();
-
-            if (processedFiles.find(absolutePath) != processedFiles.end())
-            {
-                continue;
-            }
-
-            processEVTCFile(filePath);
-
-            processedFiles.insert(absolutePath);
-
-            if (fileTime > maxProcessedTime)
-            {
-                maxProcessedTime = fileTime;
-            }
-        }
-    }
-    catch (const std::exception& ex)
-    {
-        APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-            ("Exception in scanning directory: " + std::string(ex.what())).c_str());
-    }
-}
-
-void parseInitialLogs(std::unordered_set<std::wstring>& processedFiles, size_t numLogsToParse)
-{
-    try
-    {
-        std::filesystem::path dirPath;
-        if (!Settings::LogDirectoryPath.empty())
-        {
-            dirPath = std::filesystem::path(Settings::LogDirectoryPath);
-            APIDefs->Log(ELogLevel_INFO, ADDON_NAME,
-                ("Custom log path specified: " + Settings::LogDirectoryPath).c_str());
-            if (!std::filesystem::exists(dirPath) || !std::filesystem::is_directory(dirPath))
-            {
-                APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-                    ("Specified log directory does not exist: " + Settings::LogDirectoryPath).c_str());
-                return;
-            }
-        }
-        else
-        {
-            wchar_t documentsPathW[MAX_PATH];
-            if (FAILED(SHGetFolderPathW(nullptr, CSIDL_PERSONAL, nullptr, SHGFP_TYPE_CURRENT, documentsPathW)))
-            {
-                APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-                    "Failed to get path to user's Documents folder.");
-                return;
-            }
-
-            dirPath = std::filesystem::path(documentsPathW) / L"Guild Wars 2" / L"addons" /
-                L"arcdps" / L"arcdps.cbtlogs";
-        }
-
-        std::vector<std::filesystem::path> zevtcFiles;
-
-        // Recursively search for .zevtc files in the directory
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(dirPath))
-        {
-            if (entry.is_regular_file() && entry.path().extension() == L".zevtc")
-            {
-                if (isValidEVTCFile(dirPath, entry.path()))
-                {
-                    zevtcFiles.push_back(entry.path());
-                }
-            }
-        }
-
-        if (zevtcFiles.empty())
-        {
-            std::string utf8DirPath = getUtf8Path(dirPath);
-            APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-                ("No valid .zevtc files found in directory: " + utf8DirPath).c_str());
-            return;
-        }
-
-        // Sort descending order (newest first)
-        std::sort(zevtcFiles.begin(), zevtcFiles.end(),
-            [](const std::filesystem::path& a, const std::filesystem::path& b)
-            {
-                return std::filesystem::last_write_time(a) > std::filesystem::last_write_time(b);
-            });
-
-        size_t numFilesToParse = std::min<size_t>(zevtcFiles.size(), numLogsToParse);
-
-        for (size_t i = 0; i < numFilesToParse; ++i)
-        {
-            const std::filesystem::path& filePath = zevtcFiles[i];
-            waitForFile(filePath);
-
-            std::wstring absolutePath = std::filesystem::absolute(filePath).wstring();
-
-            if (processedFiles.find(absolutePath) == processedFiles.end())
-            {
-                std::string utf8Path = getUtf8Path(filePath);
-                ParsedLog log;
-                log.filename = filePath.filename().string();
-                log.data = parseEVTCFile(filePath.string());
-
-                // fightId 1 = WvW
-                if (log.data.fightId != 1)
-                {
-                    APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
-                        ("Skipping non-WvW log during initial parsing: " + log.filename).c_str());
-                    continue;
-                }
-
-                if (log.data.totalIdentifiedPlayers == 0)
-                {
-                    APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
-                        ("Skipping log with no identified players during initial parsing: " + log.filename).c_str());
-                    continue;
-                }
-
-                parsedLogs.push_back(log);
-
-                while (parsedLogs.size() > Settings::logHistorySize)
-                {
-                    parsedLogs.pop_front();
-                }
-                currentLogIndex = 0;
-
-                processedFiles.insert(absolutePath);
-
-                // In the Wine implementation we will only parse logs with newer time stamps.
-                // Not quite the same behaviour but good enough
-                auto fileTime = std::filesystem::last_write_time(filePath);
-                if (fileTime > maxProcessedTime)
-                {
-                    maxProcessedTime = fileTime;
-                }
-            }
-            else
-            {
-                std::string utf8Path = getUtf8Path(filePath);
-                APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
-                    ("File already processed during initial parsing: " + utf8Path).c_str());
-            }
-        }
-
-        initialParsingComplete = true;
-    }
-    catch (const std::exception& ex)
-    {
-        APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-            ("Exception in initial parsing: " + std::string(ex.what())).c_str());
-    }
-}
-
-void directoryMonitor(const std::filesystem::path& dirPath, size_t numLogsToParse)
-{
-    try
-    {
-        // Use wide string for Windows API
-        HANDLE hDir = CreateFileW(
-            dirPath.wstring().c_str(),
-            FILE_LIST_DIRECTORY,
-            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-            nullptr,
-            OPEN_EXISTING,
-            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,
-            nullptr);
-
-        if (hDir == INVALID_HANDLE_VALUE)
-        {
-            std::string utf8DirPath = getUtf8Path(dirPath);
-            APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-                ("Failed to open directory for monitoring: " + utf8DirPath).c_str());
-            return;
-        }
-
-        char buffer[4096];
-        OVERLAPPED overlapped = { 0 };
-        overlapped.hEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
-
-        parseInitialLogs(processedFiles, numLogsToParse);
-
-        BOOL success = ReadDirectoryChangesW(
-            hDir,
-            buffer,
-            sizeof(buffer),
-            TRUE,
-            FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_SIZE |
-            FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_CREATION,
-            nullptr,
-            &overlapped,
-            nullptr);
-
-        if (!success)
-        {
-            APIDefs->Log(ELogLevel_WARNING, ADDON_NAME, "Failed to start directory monitoring.");
-            CloseHandle(overlapped.hEvent);
-            CloseHandle(hDir);
-            return;
-        }
-
-        while (!stopMonitoring)
-        {
-            DWORD waitStatus = WaitForSingleObject(overlapped.hEvent, 500);
-
-            if (stopMonitoring)
-            {
-                CancelIoEx(hDir, &overlapped);
-                break;
-            }
-
-            if (waitStatus == WAIT_OBJECT_0)
-            {
-                DWORD bytesTransferred = 0;
-                if (GetOverlappedResult(hDir, &overlapped, &bytesTransferred, FALSE))
-                {
-                    BYTE* pBuffer = reinterpret_cast<BYTE*>(buffer);
-                    FILE_NOTIFY_INFORMATION* fni = reinterpret_cast<FILE_NOTIFY_INFORMATION*>(pBuffer);
-
-                    do
-                    {
-                        std::wstring filenameW(fni->FileName, fni->FileNameLength / sizeof(WCHAR));
-                        std::filesystem::path fullPath = dirPath / filenameW;
-
-                        // Filter for .zevtc files
-                        if ((fni->Action == FILE_ACTION_ADDED ||
-                            fni->Action == FILE_ACTION_MODIFIED ||
-                            fni->Action == FILE_ACTION_RENAMED_NEW_NAME) &&
-                            fullPath.extension() == L".zevtc")
-                        {
-                            if (isValidEVTCFile(dirPath, fullPath))
-                            {
-                                std::wstring fullPathStr = std::filesystem::absolute(fullPath).wstring();
-
-                                {
-                                    std::lock_guard<std::mutex> lock(processedFilesMutex);
-
-                                    if (processedFiles.find(fullPathStr) == processedFiles.end())
-                                    {
-                                        processEVTCFile(fullPath);
-
-                                        processedFiles.insert(fullPathStr);
-                                    }
-                                }
-                            }
-                        }
-
-                        if (fni->NextEntryOffset == 0)
-                            break;
-
-                        fni = reinterpret_cast<FILE_NOTIFY_INFORMATION*>(
-                            reinterpret_cast<BYTE*>(fni) + fni->NextEntryOffset);
-                    } while (true);
-
-                    ResetEvent(overlapped.hEvent);
-
-                    success = ReadDirectoryChangesW(
-                        hDir,
-                        buffer,
-                        sizeof(buffer),
-                        TRUE,
-                        FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_SIZE |
-                        FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_CREATION,
-                        nullptr,
-                        &overlapped,
-                        nullptr);
-
-                    if (!success)
-                    {
-                        APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-                            "Failed to reissue directory monitoring.");
-                        break;
-                    }
-                }
-                else
-                {
-                    DWORD errorCode = GetLastError();
-                    APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-                        ("GetOverlappedResult failed with error code: " + std::to_string(errorCode)).c_str());
-                    break;
-                }
-            }
-            else if (waitStatus == WAIT_TIMEOUT)
-            {
-                continue;
-            }
-            else
-            {
-                DWORD errorCode = GetLastError();
-                APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-                    ("WaitForSingleObject failed with error code: " + std::to_string(errorCode)).c_str());
-                break;
-            }
-        }
-
-        CloseHandle(overlapped.hEvent);
-        CloseHandle(hDir);
-    }
-    catch (const std::exception& ex)
-    {
-        APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-            ("Exception in directory monitoring thread: " + std::string(ex.what())).c_str());
-    }
-}
-
-void monitorDirectory(size_t numLogsToParse, size_t pollIntervalMilliseconds)
-{
-    try
-    {
-        std::filesystem::path dirPath;
-
-        if (firstInstall) {
-            std::filesystem::path arcPath = getArcPath();
-            // Store UTF-8 path string
-            Settings::LogDirectoryPath = getUtf8Path(arcPath);
-
-            // Make sure Settings::LogDirectoryPathC can handle UTF-8
-            strncpy(Settings::LogDirectoryPathC, Settings::LogDirectoryPath.c_str(), sizeof(Settings::LogDirectoryPathC) - 1);
-            Settings::LogDirectoryPathC[sizeof(Settings::LogDirectoryPathC) - 1] = '\0';
-
-            Settings::Settings[CUSTOM_LOG_PATH] = Settings::LogDirectoryPath;
-            Settings::Save(SettingsPath);
-        }
-
-        if (!Settings::LogDirectoryPath.empty())
-        {
-            dirPath = std::filesystem::path(Settings::LogDirectoryPath);
-
-            if (!std::filesystem::exists(dirPath) || !std::filesystem::is_directory(dirPath))
-            {
-                APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-                    ("Specified log directory does not exist: " + Settings::LogDirectoryPath).c_str());
-                return;
-            }
-        }
-        else
-        {
-            wchar_t documentsPathW[MAX_PATH];
-            if (FAILED(SHGetFolderPathW(nullptr, CSIDL_PERSONAL, nullptr, SHGFP_TYPE_CURRENT, documentsPathW)))
-            {
-                APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-                    "Failed to get path to user's Documents folder.");
-                return;
-            }
-
-            dirPath = std::filesystem::path(documentsPathW) / L"Guild Wars 2" / L"addons" /
-                L"arcdps" / L"arcdps.cbtlogs";
-        }
-
-        // Determine if we're running under Wine
-        bool runningUnderWine = isRunningUnderWine();
-        if (runningUnderWine)
-        {
-            APIDefs->Log(ELogLevel_INFO, ADDON_NAME, "Running under Wine/Proton. Using polling method.");
-
-            parseInitialLogs(processedFiles, numLogsToParse);
-
-            while (!stopMonitoring)
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(pollIntervalMilliseconds));
-
-                if (stopMonitoring)
-                {
-                    break;
-                }
-
-                scanForNewFiles(dirPath, processedFiles);
-            }
-        }
-        else
-        {
-            APIDefs->Log(ELogLevel_INFO, ADDON_NAME, "Running under Windows. Using ReadDirectoryChangesW method.");
-
-            directoryMonitor(dirPath, numLogsToParse);
-        }
-    }
-    catch (const std::exception& ex)
-    {
-        APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
-            ("Exception in directory monitoring thread: " + std::string(ex.what())).c_str());
-    }
-}
-
 std::vector<char> extractZipFile(const std::string& filePath) {
     return extractZipFile(std::filesystem::path(filePath));
 }
@@ -734,3 +240,4 @@ std::vector<char> extractZipFile(const std::string& filePath) {
 void waitForFile(const std::string& filePath) {
     waitForFile(std::filesystem::path(filePath));
 }
+

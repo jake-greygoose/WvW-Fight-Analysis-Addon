@@ -5,7 +5,6 @@
 #include "parser/file_helpers.h"
 #include "parser/statistics_helper.h"
 #include "utils/Utils.h"
-#include <zip.h>
 #include <thread>
 #include <chrono>
 #include <filesystem>

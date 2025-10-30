@@ -6,7 +6,6 @@
 #include "evtc_parser.h"
 #include <thread>
 #include <chrono>
-#include <zip.h>
 #include <shlobj.h>
 #include <sstream>
 #include <filesystem>
