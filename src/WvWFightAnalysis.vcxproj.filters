@@ -19,7 +19,7 @@
     </ClCompile>
     <ClCompile Include="src\shared\Shared.cpp" />
     <ClCompile Include="src\settings\Settings.cpp" />
-    <ClCompile Include="evtc_parser.cpp" />
+    <ClCompile Include="src\parser\evtc_parser.cpp" />
     <ClCompile Include="src\utils\utils.cpp" />
     <ClCompile Include="gui.cpp" />
     <ClCompile Include="src\gui\BarTemplate.cpp" />
@@ -55,7 +55,8 @@
     <ClInclude Include="nexus\Nexus.h" />
     <ClInclude Include="mumble\Mumble.h" />
     <ClInclude Include="resource.h" />
-    <ClInclude Include="evtc_parser.h" />
+    <ClInclude Include="include\parser\evtc_parser.h" />
+    <ClInclude Include="include\gui\gui.h" />
     <ClInclude Include="include\gui\BarTemplate.h" />
     <ClInclude Include="include\gui\WindowRenderer.h" />
     <ClInclude Include="include\gui\windows\MainWindow.h" />
@@ -65,6 +66,9 @@
     <ClInclude Include="include\parser\boon_strip_skills.h" />
     <ClInclude Include="include\parser\statistics_helper.h" />
     <ClInclude Include="include\parser\file_helpers.h" />
+    <ClInclude Include="include\settings\Settings.h" />
+    <ClInclude Include="include\shared\Shared.h" />
+    <ClInclude Include="include\utils\Utils.h" />
     <ClInclude Include="include\integration\MursaatPanelIntegration.h" />
   </ItemGroup>
   <ItemGroup>

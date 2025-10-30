@@ -30,26 +30,26 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
@@ -114,7 +114,7 @@
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)include;$(SolutionDir)packages\nlohmann.json.3.11.3\build\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -133,7 +133,7 @@
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)include;$(SolutionDir)packages\nlohmann.json.3.11.3\build\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -154,7 +154,7 @@
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)include;$(SolutionDir)packages\nlohmann.json.3.11.3\build\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -177,7 +177,7 @@
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)include;$(SolutionDir)packages\nlohmann.json.3.11.3\build\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -189,13 +189,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="include\gui\BarTemplate.h" />
-    <ClInclude Include="evtc_parser.h" />
-    <ClInclude Include="imgui\imconfig.h" />
-    <ClInclude Include="imgui\imgui.h" />
-    <ClInclude Include="imgui\imgui_internal.h" />
-    <ClInclude Include="imgui\imstb_rectpack.h" />
-    <ClInclude Include="imgui\imstb_textedit.h" />
-    <ClInclude Include="imgui\imstb_truetype.h" />
+    <ClInclude Include="include\gui\gui.h" />
     <ClInclude Include="include\gui\WindowRenderer.h" />
     <ClInclude Include="include\gui\windows\AggregateWindow.h" />
     <ClInclude Include="include\gui\windows\MainWindow.h" />
@@ -203,33 +197,43 @@
     <ClInclude Include="include\integration\MursaatPanelIntegration.h" />
     <ClInclude Include="include\parser\boon_strip_skills.h" />
     <ClInclude Include="include\parser\boon_strip_tracker.h" />
+    <ClInclude Include="include\parser\evtc_parser.h" />
     <ClInclude Include="include\parser\file_helpers.h" />
     <ClInclude Include="include\parser\statistics_helper.h" />
+    <ClInclude Include="include\settings\Settings.h" />
+    <ClInclude Include="include\shared\Shared.h" />
+    <ClInclude Include="include\utils\Utils.h" />
+    <ClInclude Include="imgui\imconfig.h" />
+    <ClInclude Include="imgui\imgui.h" />
+    <ClInclude Include="imgui\imgui_internal.h" />
+    <ClInclude Include="imgui\imstb_rectpack.h" />
+    <ClInclude Include="imgui\imstb_textedit.h" />
+    <ClInclude Include="imgui\imstb_truetype.h" />
     <ClInclude Include="mumble\Mumble.h" />
     <ClInclude Include="nexus\Nexus.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\gui\BarTemplate.cpp" />
     <ClCompile Include="entry.cpp" />
-    <ClCompile Include="evtc_parser.cpp" />
     <ClCompile Include="gui.cpp" />
     <ClCompile Include="imgui\imgui.cpp" />
     <ClCompile Include="imgui\imgui_demo.cpp" />
     <ClCompile Include="imgui\imgui_draw.cpp" />
     <ClCompile Include="imgui\imgui_tables.cpp" />
     <ClCompile Include="imgui\imgui_widgets.cpp" />
-    <ClCompile Include="src\integration\MursaatPanelIntegration.cpp" />
-    <ClCompile Include="src\parser\boon_strip_skills.cpp" />
-    <ClCompile Include="src\parser\boon_strip_tracker.cpp" />
-    <ClCompile Include="src\parser\file_helpers.cpp" />
-    <ClCompile Include="src\parser\statistics_helper.cpp" />
-    <ClCompile Include="src\settings\Settings.cpp" />
-    <ClCompile Include="src\shared\Shared.cpp" />
+    <ClCompile Include="src\gui\BarTemplate.cpp" />
     <ClCompile Include="src\gui\WindowRenderer.cpp" />
     <ClCompile Include="src\gui\windows\AggregateWindow.cpp" />
     <ClCompile Include="src\gui\windows\MainWindow.cpp" />
     <ClCompile Include="src\gui\windows\WidgetWindow.cpp" />
+    <ClCompile Include="src\integration\MursaatPanelIntegration.cpp" />
+    <ClCompile Include="src\parser\boon_strip_skills.cpp" />
+    <ClCompile Include="src\parser\boon_strip_tracker.cpp" />
+    <ClCompile Include="src\parser\evtc_parser.cpp" />
+    <ClCompile Include="src\parser\file_helpers.cpp" />
+    <ClCompile Include="src\parser\statistics_helper.cpp" />
+    <ClCompile Include="src\settings\Settings.cpp" />
+    <ClCompile Include="src\shared\Shared.cpp" />
     <ClCompile Include="src\utils\utils.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -252,7 +256,6 @@
     <Image Include="assets\death_icon.png" />
     <Image Include="assets\downed_24x24.png" />
     <Image Include="assets\downed_icon.png" />
-    <Image Include="assets\down_cont_icon.png" />
     <Image Include="assets\dragonhunter_16x16.png" />
     <Image Include="assets\druid_16x16.png" />
     <Image Include="assets\elementalist_16x16.png" />
@@ -263,7 +266,6 @@
     <Image Include="assets\herald_16x16.png" />
     <Image Include="assets\holosmith_16x16.png" />
     <Image Include="assets\home_icon.png" />
-    <Image Include="assets\kill_cont_icon.png" />
     <Image Include="assets\mechanist_16x16.png" />
     <Image Include="assets\mesmer_16x16.png" />
     <Image Include="assets\mirage_16x16.png" />
@@ -281,7 +283,6 @@
     <Image Include="assets\squad_icon.png" />
     <Image Include="assets\strike_damage_30x30.png" />
     <Image Include="assets\strike_damage_icon.png" />
-    <Image Include="assets\strips_icon.png" />
     <Image Include="assets\tempest_16x16.png" />
     <Image Include="assets\thief_16x16.png" />
     <Image Include="assets\untamed_16x16.png" />
@@ -291,17 +292,7 @@
     <Image Include="assets\weaver_16x16.png" />
     <Image Include="assets\willbender_16x16.png" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="packages.config" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="..\packages\nlohmann.json.3.11.3\build\native\nlohmann.json.targets" Condition="Exists('..\packages\nlohmann.json.3.11.3\build\native\nlohmann.json.targets')" />
   </ImportGroup>
-  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
-    <PropertyGroup>
-      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
-    </PropertyGroup>
-    <Error Condition="!Exists('..\packages\nlohmann.json.3.11.3\build\native\nlohmann.json.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\nlohmann.json.3.11.3\build\native\nlohmann.json.targets'))" />
-  </Target>
 </Project>
