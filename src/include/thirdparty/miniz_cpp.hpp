@@ -8,8 +8,7 @@
 #include <utility>
 #include <vector>
 
-#define MINIZ_HEADER_FILE_ONLY
-#include "thirdparty/miniz.c"
+#include "thirdparty/miniz.h"
 
 namespace miniz_cpp {
 

@@ -17,6 +17,10 @@
     <ClCompile Include="imgui\imgui.cpp">
       <Filter>imgui</Filter>
     </ClCompile>
+    <ClCompile Include="include\thirdparty\miniz.c" />
+    <ClCompile Include="include\thirdparty\miniz_tdef.c" />
+    <ClCompile Include="include\thirdparty\miniz_tinfl.c" />
+    <ClCompile Include="include\thirdparty\miniz_zip.c" />
     <ClCompile Include="src\shared\Shared.cpp" />
     <ClCompile Include="src\settings\Settings.cpp" />
     <ClCompile Include="src\parser\evtc_parser.cpp" />
