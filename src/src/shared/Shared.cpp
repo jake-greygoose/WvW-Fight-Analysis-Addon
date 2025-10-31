@@ -79,7 +79,6 @@ std::deque<ParsedLog> parsedLogs;
 // Maps
 std::unordered_map<int, std::string> professions;
 std::unordered_map<int, std::string> eliteSpecs;
-std::unordered_map<int, std::string> teamIDs;
 std::unordered_map<std::string, std::string> eliteSpecToProfession;
 std::unordered_map<std::string, std::string> eliteSpecShortNames;
 std::unordered_map<std::string, ImVec4> professionColors;

@@ -410,7 +410,6 @@ enum class BoonIds : uint32_t {
 // Maps
 extern std::unordered_map<int, std::string> professions;
 extern std::unordered_map<int, std::string> eliteSpecs;
-extern std::unordered_map<int, std::string> teamIDs;
 extern std::unordered_map<std::string, std::string> eliteSpecToProfession;
 extern std::unordered_map<std::string, std::string> eliteSpecShortNames;
 extern std::unordered_map<std::string, ImVec4> professionColors;

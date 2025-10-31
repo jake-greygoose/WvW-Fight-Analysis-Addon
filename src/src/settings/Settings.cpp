@@ -13,6 +13,21 @@ const char* FORCE_LINUX_COMPAT = "ForceLinuxCompat";
 const char* POLL_INTERVAL_MILLISECONDS = "PollIntervalMilliseconds";
 const char* USE_NEXUS_ESC_CLOSE = "UseNexusEscClose";
 const char* DEBUG_STRINGS_MODE = "debugStringsMode";
+const char* TEAM_IDS = "TeamIDs";
+
+// Default team IDs that ship with the addon
+// These are always merged with user's custom team IDs
+static const std::unordered_map<int, std::string> DEFAULT_TEAM_IDS = {
+    // Red team IDs
+    {697, "Red"}, {699, "Red"}, {705, "Red"}, {706, "Red"},
+    {707, "Red"}, {882, "Red"}, {885, "Red"}, {2520, "Red"},
+    // Green team IDs
+    {39, "Green"}, {2739, "Green"}, {2741, "Green"},
+    {2752, "Green"}, {2763, "Green"}, {2767, "Green"},
+    // Blue team IDs
+    {432, "Blue"}, {433, "Blue"}, {1277, "Blue"},
+    {1281, "Blue"}, {1989, "Blue"}, {1996, "Blue"}
+};
 
 BaseWindowSettings::BaseWindowSettings(const json& j, const std::string& idPrefix) {
     windowId = GenerateUniqueId(idPrefix);
@@ -403,6 +418,7 @@ namespace Settings {
     bool hideAggWhenEmpty = false;
     bool useNexusEscClose = false;
     bool debugStringsMode = false;
+    std::unordered_map<int, std::string> teamIDs;
 
     void Settings::Load(std::filesystem::path aPath) {
         Settings::Mutex.lock();
@@ -443,6 +459,11 @@ namespace Settings {
                 }
                 if (!Settings.contains(DEBUG_STRINGS_MODE)) {
                     Settings[DEBUG_STRINGS_MODE] = false;
+                }
+
+                // Initialize TeamIDs with defaults if key doesn't exist
+                if (!Settings.contains(TEAM_IDS)) {
+                    Settings[TEAM_IDS] = json::object();
                 }
 
                 // Safely load values into variables with try/catch for each
@@ -511,6 +532,43 @@ namespace Settings {
                     Settings[DEBUG_STRINGS_MODE] = false;
                 }
 
+                // Load team IDs - merge defaults with user's custom IDs
+                try {
+                    // Start with defaults (always include addon's known team IDs)
+                    teamIDs = DEFAULT_TEAM_IDS;
+
+                    // Load user's custom IDs from settings and merge/override
+                    if (Settings[TEAM_IDS].is_object()) {
+                        for (auto& [key, value] : Settings[TEAM_IDS].items()) {
+                            try {
+                                int teamId = std::stoi(key);
+                                std::string teamName = value.get<std::string>();
+                                // User's custom IDs can override defaults or add new ones
+                                teamIDs[teamId] = teamName;
+                            }
+                            catch (...) {
+                                // Skip invalid entries
+                            }
+                        }
+                    }
+
+                    // Save the merged result back to settings (defaults + user custom)
+                    json mergedTeamIDs = json::object();
+                    for (const auto& [id, name] : teamIDs) {
+                        mergedTeamIDs[std::to_string(id)] = name;
+                    }
+                    Settings[TEAM_IDS] = mergedTeamIDs;
+                }
+                catch (...) {
+                    // On error, use defaults only
+                    teamIDs = DEFAULT_TEAM_IDS;
+                    json defaultTeamIDsJson = json::object();
+                    for (const auto& [id, name] : DEFAULT_TEAM_IDS) {
+                        defaultTeamIDsJson[std::to_string(id)] = name;
+                    }
+                    Settings[TEAM_IDS] = defaultTeamIDsJson;
+                }
+
                 // Handle windows
                 try {
                     if (Settings.contains("windows")) {
@@ -526,12 +584,10 @@ namespace Settings {
                     Settings["windows"] = windowManager.ToJson();
                 }
 
-                // Save to ensure all defaults are written
-                if (!std::filesystem::exists(aPath)) {
-                    std::ofstream file(aPath);
-                    file << Settings.dump(1, '\t') << std::endl;
-                    file.close();
-                }
+                // Save to ensure all defaults are written, including merged team IDs
+                std::ofstream file(aPath);
+                file << Settings.dump(1, '\t') << std::endl;
+                file.close();
 
             }
             catch (...) {
@@ -549,6 +605,7 @@ namespace Settings {
                 hideAggWhenEmpty = false;
                 useNexusEscClose = false;
                 debugStringsMode = false;
+                teamIDs = DEFAULT_TEAM_IDS;
 
                 // Set all default settings
                 Settings[CUSTOM_LOG_PATH] = LogDirectoryPath;
@@ -559,6 +616,13 @@ namespace Settings {
                 Settings[POLL_INTERVAL_MILLISECONDS] = pollIntervalMilliseconds;
                 Settings[USE_NEXUS_ESC_CLOSE] = useNexusEscClose;
                 Settings[DEBUG_STRINGS_MODE] = debugStringsMode;
+
+                // Use the same defaults defined at file scope
+                json defaultTeamIDsJson = json::object();
+                for (const auto& [id, name] : DEFAULT_TEAM_IDS) {
+                    defaultTeamIDsJson[std::to_string(id)] = name;
+                }
+                Settings[TEAM_IDS] = defaultTeamIDsJson;
 
                 InitializeDefaultWindows();
                 Settings["windows"] = windowManager.ToJson();
@@ -572,6 +636,13 @@ namespace Settings {
         {
             // Update windows section
             Settings["windows"] = windowManager.ToJson();
+
+            // Update team IDs section
+            json teamIDsJson = json::object();
+            for (const auto& [id, name] : teamIDs) {
+                teamIDsJson[std::to_string(id)] = name;
+            }
+            Settings[TEAM_IDS] = teamIDsJson;
 
             // Write to file
             std::ofstream file(aPath);

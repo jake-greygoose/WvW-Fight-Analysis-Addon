@@ -195,6 +195,7 @@ extern const char* FORCE_LINUX_COMPAT;
 extern const char* POLL_INTERVAL_MILLISECONDS;
 extern const char* USE_NEXUS_ESC_CLOSE;
 extern const char* DEBUG_STRINGS_MODE;
+extern const char* TEAM_IDS;
 
 namespace Settings {
     extern std::mutex Mutex;
@@ -209,6 +210,7 @@ namespace Settings {
     extern size_t pollIntervalMilliseconds;
     extern bool useNexusEscClose;
     extern bool debugStringsMode;
+    extern std::unordered_map<int, std::string> teamIDs;
 
     extern WindowManager windowManager;
 
