@@ -235,9 +235,25 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 		case StateChange::TeamChange: {
 			uint32_t teamID = static_cast<uint32_t>(event.value);
 			if (teamID != 0 && agentsByAddress.find(event.srcAgent) != agentsByAddress.end()) {
-				auto it = teamIDs.find(teamID);
-				if (it != teamIDs.end()) {
-					Agent& agent = agentsByAddress[event.srcAgent];
+				Agent& agent = agentsByAddress[event.srcAgent];
+				auto it = Settings::teamIDs.find(teamID);
+
+				if (Settings::debugStringsMode) {
+					std::string agentInfo = agent.name.empty() ? agent.accountName : agent.name;
+					if (agentInfo.empty()) agentInfo = "Unknown Agent";
+
+					if (it != Settings::teamIDs.end()) {
+						APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
+							("TeamChange: Agent '" + agentInfo + "' assigned to team ID " +
+							std::to_string(teamID) + " (" + it->second + ")").c_str());
+					} else {
+						APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
+							("TeamChange: Agent '" + agentInfo + "' has UNKNOWN team ID " +
+							std::to_string(teamID) + " (not in settings)").c_str());
+					}
+				}
+
+				if (it != Settings::teamIDs.end()) {
 					agent.team = it->second;
 				}
 			}
@@ -542,19 +558,9 @@ ParsedData parseEVTCFile(const std::string& filePath) {
 	size_t remainingBytes = bytes.size() - offset;
 	size_t eventCount = remainingBytes / eventSize;
 
-	// Collect all events
-	std::vector<CombatEvent> allEvents;
-	allEvents.reserve(eventCount);
-
-	for (size_t i = 0; i < eventCount; ++i) {
-		size_t eventOffset = offset + (i * eventSize);
-		if (eventOffset + eventSize > bytes.size()) {
-			break;
-		}
-		CombatEvent event;
-		std::memcpy(&event, bytes.data() + eventOffset, eventSize);
-		allEvents.push_back(event);
-	}
+	// Process combat events
+	std::unordered_map<uint16_t, Agent*> playersBySrcInstid;
+	parseCombatEvents(bytes, offset, eventCount, agentsByAddress, playersBySrcInstid, result);
 
 	return result;
 }
@@ -710,8 +716,18 @@ void parseInitialLogs(std::unordered_set<std::wstring>& processedFiles, size_t n
 
 				if (log.data.totalIdentifiedPlayers == 0)
 				{
-					APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
-						("Skipping log with no identified players during initial parsing: " + log.filename).c_str());
+					if (Settings::debugStringsMode) {
+						size_t teamCount = log.data.teamStats.size();
+						std::string teamInfo = "Teams found: " + std::to_string(teamCount);
+						for (const auto& [teamName, stats] : log.data.teamStats) {
+							teamInfo += " [" + teamName + ": " + std::to_string(stats.totalPlayers) + " players]";
+						}
+						APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
+							("Skipping log with no identified players during initial parsing: " + log.filename + " - " + teamInfo).c_str());
+					} else {
+						APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
+							("Skipping log with no identified players during initial parsing: " + log.filename).c_str());
+					}
 					continue;
 				}
 
@@ -1052,7 +1068,17 @@ void processNewEVTCFile(const std::string& filePath)
 
 	if (log.data.totalIdentifiedPlayers == 0)
 	{
-		APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME, ("Skipping log with no identified players: " + filename).c_str());
+		if (Settings::debugStringsMode) {
+			size_t teamCount = log.data.teamStats.size();
+			std::string teamInfo = "Teams found: " + std::to_string(teamCount);
+			for (const auto& [teamName, stats] : log.data.teamStats) {
+				teamInfo += " [" + teamName + ": " + std::to_string(stats.totalPlayers) + " players]";
+			}
+			APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
+				("Skipping log with no identified players: " + filename + " - " + teamInfo).c_str());
+		} else {
+			APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME, ("Skipping log with no identified players: " + filename).c_str());
+		}
 		return;
 	}
 
