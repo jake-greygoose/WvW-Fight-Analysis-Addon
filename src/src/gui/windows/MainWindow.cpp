@@ -1,6 +1,7 @@
 ﻿#define NOMINMAX
 #include "gui/windows/MainWindow.h"
 #include "resource.h"
+#include "thirdparty/imgui_positioning/imgui_positioning.h"
 #include <algorithm>
 #include <sstream>
 #include <iomanip>
@@ -84,8 +85,14 @@ namespace wvwfightanalysis::gui {
             window_flags |= ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize;
         if (settings->disableClicking)
             window_flags |= ImGuiWindowFlags_NoInputs;
-        ImGui::SetNextWindowPos(settings->position, ImGuiCond_FirstUseEver);
+
+        // Update positioning from imgui_positioning library
+        // Note: Don't call SetNextWindowPos/Size as it conflicts with imgui_positioning
+        window_flags |= ImGuiExt::UpdatePosition(windowName);
+
+        // Only set default size on first use (position is handled by imgui_positioning)
         ImGui::SetNextWindowSize(settings->size, ImGuiCond_FirstUseEver);
+
         bool pushedTitleStyle = false;
         if (settings->useWindowStyleForTitle) {
             ImGuiStyle& style = ImGui::GetStyle();
@@ -259,15 +266,11 @@ namespace wvwfightanalysis::gui {
 
         }
 
-        // Right-click popup to show settings.
-        if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup | ImGuiHoveredFlags_ChildWindows) &&
-            ImGui::IsMouseClicked(ImGuiMouseButton_Right))
-        {
-            ImGui::OpenPopup("MainWindow Settings");
-        }
-
-        // Render the settings popup (if any).
+        // Render the settings popup with positioning integration
         RenderMainWindowSettingsPopup(settings);
+
+        // Append positioning menu to the same context menu
+        ImGuiExt::ContextMenuPosition("MainWindowContextMenu");
 
         // Update window position & size for persistent settings.
         settings->position = ImGui::GetWindowPos();
@@ -847,7 +850,7 @@ namespace wvwfightanalysis::gui {
     }
 
     void MainWindow::RenderMainWindowSettingsPopup(MainWindowSettings* settings) {
-        if (!ImGui::BeginPopup("MainWindow Settings")) return;
+        if (!ImGui::BeginPopupContextWindow("MainWindowContextMenu", ImGuiPopupFlags_MouseButtonRight)) return;
 
         // Window Name Editor
         if (!settings->isWindowNameEditing) {

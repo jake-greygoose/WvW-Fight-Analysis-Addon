@@ -2,6 +2,7 @@
 #include "gui/windows/AggregateWindow.h"
 #include "utils/Utils.h"
 #include "resource.h"
+#include "thirdparty/imgui_positioning/imgui_positioning.h"
 
 namespace wvwfightanalysis::gui {
 
@@ -31,7 +32,11 @@ namespace wvwfightanalysis::gui {
         if (settings->disableMoving) window_flags |= ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize;
         if (settings->disableClicking) window_flags |= ImGuiWindowFlags_NoInputs;
 
-        ImGui::SetNextWindowPos(settings->position, ImGuiCond_FirstUseEver);
+        // Update positioning from imgui_positioning library
+        // Note: Don't call SetNextWindowPos/Size as it conflicts with imgui_positioning
+        window_flags |= ImGuiExt::UpdatePosition(windowName);
+
+        // Only set default size on first use (position is handled by imgui_positioning)
         ImGui::SetNextWindowSize(settings->size, ImGuiCond_FirstUseEver);
 
         bool windowOpen = ImGui::Begin(windowName.c_str(), &settings->isEnabled, window_flags);
@@ -75,12 +80,10 @@ namespace wvwfightanalysis::gui {
             ImGui::Separator();
         }
 
-        if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup |
-            ImGuiHoveredFlags_ChildWindows) && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-            ImGui::OpenPopup("Aggregate Settings");
-        }
-
         RenderSettingsPopup(settings);
+
+        // Append positioning menu to the same context menu
+        ImGuiExt::ContextMenuPosition("AggregateContextMenu");
 
         settings->position = ImGui::GetWindowPos();
         settings->size = ImGui::GetWindowSize();
@@ -187,7 +190,7 @@ namespace wvwfightanalysis::gui {
     }
 
     void AggregateWindow::RenderSettingsPopup(AggregateWindowSettings* settings) {
-        if (ImGui::BeginPopup("Aggregate Settings")) {
+        if (ImGui::BeginPopupContextWindow("AggregateContextMenu", ImGuiPopupFlags_MouseButtonRight)) {
             // Name editing logic
             if (!settings->isWindowNameEditing) {
                 strncpy(settings->tempWindowName, settings->windowName.c_str(),

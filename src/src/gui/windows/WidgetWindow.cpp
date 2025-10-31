@@ -1,7 +1,8 @@
 #include "gui/windows/WidgetWindow.h"
 #include "utils/Utils.h"
 #include "resource.h"
-#include "imgui/imgui_internal.h" 
+#include "imgui/imgui_internal.h"
+#include "thirdparty/imgui_positioning/imgui_positioning.h" 
 
 namespace wvwfightanalysis::gui {
 
@@ -34,6 +35,10 @@ namespace wvwfightanalysis::gui {
 
         const ImVec2 widgetSize(settings->widgetWidth, settings->widgetHeight);
         ImGui::SetNextWindowSize(widgetSize);
+
+        // Update positioning from imgui_positioning library
+        window_flags |= ImGuiExt::UpdatePosition(windowName);
+
         if (ImGui::Begin(windowName.c_str(), &settings->isEnabled, window_flags)) {
             if (parsedLogs.empty()) {
                 ImGui::Text(initialParsingComplete ? "No logs parsed yet." : "Parsing logs...");
@@ -172,12 +177,14 @@ namespace wvwfightanalysis::gui {
                 }
             }
 
-            if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup | ImGuiHoveredFlags_ChildWindows) &&
-                ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-                ImGui::OpenPopup("Widget Settings");
-            }
-
             RenderSettingsPopup(settings);
+
+            // Append positioning menu to the same context menu
+            ImGuiExt::ContextMenuPosition("WidgetContextMenu");
+
+            // Pop style vars after all popup content (including positioning) is added
+            ImGui::PopStyleVar(2);
+
             settings->position = ImGui::GetWindowPos();
 
             ImGui::PopStyleColor();
@@ -203,7 +210,7 @@ namespace wvwfightanalysis::gui {
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5.0f, 5.0f));
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(5.0f, 5.0f));
 
-        if (ImGui::BeginPopup("Widget Settings")) {
+        if (ImGui::BeginPopupContextWindow("WidgetContextMenu", ImGuiPopupFlags_MouseButtonRight)) {
             if (!settings->isWindowNameEditing) {
                 strncpy(settings->tempWindowName, settings->windowName.c_str(),
                     sizeof(settings->tempWindowName) - 1);
@@ -244,7 +251,7 @@ namespace wvwfightanalysis::gui {
             settings->isWindowNameEditing = false;
         }
 
-        ImGui::PopStyleVar(2);
+        // Don't pop style vars here - let them apply to ContextMenuPosition too
     }
 
     void WidgetWindow::RenderHistoryMenu(WidgetWindowSettings* settings) {
