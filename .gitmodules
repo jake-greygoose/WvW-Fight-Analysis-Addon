@@ -7,3 +7,6 @@
 [submodule "src/mumble"]
 	path = src/mumble
 	url = https://github.com/RaidcoreGG/RCGG-lib-mumble-api
+[submodule "src/include/thirdparty/imgui_positioning"]
+	path = src/include/thirdparty/imgui_positioning
+	url = https://github.com/RaidcoreGG/imgui_positioning.git
