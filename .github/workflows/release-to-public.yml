@@ -56,15 +56,15 @@ jobs:
       run: cmake --build build --config Release -j
 
     - name: Package
+      shell: pwsh
       run: |
-        mkdir release_package
-        if (Test-Path "build/lib/Release/*.dll") { Copy-Item build/lib/Release/*.dll release_package/ }
-        if (Test-Path "build/bin/Release/*.dll") { Copy-Item build/bin/Release/*.dll release_package/ }
-        if (-not (Test-Path "release_package/*.dll")) {
+        $artifacts = Get-ChildItem -Path build -Filter *.dll -Recurse
+        if (-not $artifacts) {
           Write-Error "No DLL found!"
           exit 1
         }
-      shell: pwsh
+        New-Item -ItemType Directory -Path release_package -Force | Out-Null
+        Copy-Item -Path $artifacts.FullName -Destination release_package/ -Force
 
     - name: Release to Private Repo
       uses: softprops/action-gh-release@v1
