@@ -89,13 +89,26 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     _MBCS
 )
 
-# Set output directory
+# Set output directories for single and multi-config generators
+set(_runtime_dir "${CMAKE_BINARY_DIR}/bin")
+set(_library_dir "${CMAKE_BINARY_DIR}/lib")
+
 set_target_properties(${PROJECT_NAME} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/${CMAKE_BUILD_TYPE}"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/${CMAKE_BUILD_TYPE}"
-    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/${CMAKE_BUILD_TYPE}"
+    RUNTIME_OUTPUT_DIRECTORY "${_runtime_dir}"
+    LIBRARY_OUTPUT_DIRECTORY "${_library_dir}"
+    ARCHIVE_OUTPUT_DIRECTORY "${_library_dir}"
     OUTPUT_NAME "WvWFightAnalysis"
 )
+
+foreach(_cfg IN ITEMS Debug Release RelWithDebInfo MinSizeRel)
+    string(TOUPPER "${_cfg}" _cfg_upper)
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_${_cfg_upper} "${_runtime_dir}/${_cfg}"
+        LIBRARY_OUTPUT_DIRECTORY_${_cfg_upper} "${_library_dir}/${_cfg}"
+        ARCHIVE_OUTPUT_DIRECTORY_${_cfg_upper} "${_library_dir}/${_cfg}"
+    )
+endforeach()
+
 
 # Windows-specific settings
 if(WIN32)
