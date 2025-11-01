@@ -8,6 +8,8 @@
 #include "parser/evtc_parser.h"
 #include "integration/MursaatPanelIntegration.h"
 
+#include "autoversion.h"
+
 
 
 // Function prototypes
@@ -38,6 +40,7 @@ void AddonLoad(AddonAPI* aApi) {
     std::filesystem::create_directory(AddonPath);
     Settings::Load(SettingsPath);
     initMaps();
+
     g_windowRenderer = std::make_unique<wvwfightanalysis::gui::WindowRenderer>();
 
     for (auto& mainWindow : Settings::windowManager.mainWindows) {
@@ -183,11 +186,9 @@ void ProcessKeybinds(const char* aIdentifier, bool aIsRelease) {
 }
 
 void AddonRender() {
-
     if (g_windowRenderer) {
         g_windowRenderer->RenderAllWindows(hSelf);
     }
-
 }
 
 void AddonOptions()
@@ -493,10 +494,7 @@ extern "C" __declspec(dllexport) AddonDefinition * GetAddonDef()
     AddonDef.Signature = -996748;
     AddonDef.APIVersion = NEXUS_API_VERSION;
     AddonDef.Name = ADDON_NAME;
-    AddonDef.Version.Major = 1;
-    AddonDef.Version.Minor = 1;
-    AddonDef.Version.Build = 0;
-    AddonDef.Version.Revision = 9;
+    SeedAddonVersionFromBuild(AddonDef);
     AddonDef.Author = "Unreal.2358";
     AddonDef.Description = "WvW log analysis tool.";
     AddonDef.Load = AddonLoad;

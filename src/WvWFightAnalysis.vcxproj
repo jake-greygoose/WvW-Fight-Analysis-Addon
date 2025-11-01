@@ -212,6 +212,7 @@
     <ClInclude Include="mumble\Mumble.h" />
     <ClInclude Include="nexus\Nexus.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="autoversion.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="entry.cpp" />
@@ -262,6 +263,7 @@
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Resource.rc" />
+    <ResourceCompile Include="autoversion.rc" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="assets\Arena_Proprietor_16x16.png" />
@@ -319,4 +321,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <Target Name="GenerateVersion" BeforeTargets="ClCompile">
+    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(ProjectDir)scripts\gen-version.ps1&quot;" />
+  </Target>
 </Project>

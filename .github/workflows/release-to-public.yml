@@ -1,0 +1,76 @@
+name: Build and Release to Public Repo
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      custom_tag:
+        description: 'Optional: Custom tag name'
+        required: false
+        type: string
+
+jobs:
+  build-and-release:
+    name: Build and Release
+    runs-on: windows-2022
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - uses: microsoft/setup-msbuild@v2
+
+    - uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.27.x'
+
+    - name: Generate version
+      id: version
+      run: |
+        if (Test-Path "src/scripts/gen-version.ps1") {
+          pwsh -ExecutionPolicy Bypass -File "src/scripts/gen-version.ps1"
+          $content = Get-Content src/autoversion.h -Raw
+          if ($content -match 'Major = (\d+)') { $major = $matches[1] }
+          if ($content -match 'Minor = (\d+)') { $minor = $matches[1] }
+          if ($content -match 'Build = (\d+)') { $build = $matches[1] }
+          if ($content -match 'Revision = (\d+)') { $revision = $matches[1] }
+          $version = "$major.$minor.$build.$revision"
+          echo "Generated version: $version"
+        } else {
+          $version = "0.0.0.0"
+          echo "No version script found, using default: $version"
+        }
+        echo "version=$version" >> $env:GITHUB_OUTPUT
+        echo "tag=v$version" >> $env:GITHUB_OUTPUT
+      shell: pwsh
+
+    - name: Configure CMake
+      run: cmake -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: cmake --build build --config Release -j
+
+    - name: Package
+      run: |
+        mkdir release_package
+        if (Test-Path "build/lib/Release/*.dll") { Copy-Item build/lib/Release/*.dll release_package/ }
+        if (Test-Path "build/bin/Release/*.dll") { Copy-Item build/bin/Release/*.dll release_package/ }
+        if (-not (Test-Path "release_package/*.dll")) {
+          Write-Error "No DLL found!"
+          exit 1
+        }
+      shell: pwsh
+
+    - name: Release to Private Repo
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.version.outputs.tag }}
+        name: ${{ steps.version.outputs.tag }}
+        body: |
+          Version: ${{ steps.version.outputs.version }}
+        files: release_package/*.dll

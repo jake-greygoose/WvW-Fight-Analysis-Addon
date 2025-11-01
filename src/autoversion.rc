@@ -1,0 +1,29 @@
+#include <windows.h>
+#include <winver.h>
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 2025,10,31,1322
+ PRODUCTVERSION 2025,10,31,1322
+ FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+ FILEFLAGS 0x0L
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_DLL
+ FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904E4"
+        BEGIN
+            VALUE "FileDescription", "WvW Fight Analysis"
+            VALUE "FileVersion", "2025.10.31.1322"
+            VALUE "InternalName", "WvW Fight Analysis"
+            VALUE "OriginalFilename", "WvWFightAnalysis.dll"
+            VALUE "ProductName", "WvW Fight Analysis"
+            VALUE "ProductVersion", "2025.10.31.1322"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1252
+    END
+END
