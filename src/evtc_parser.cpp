@@ -236,8 +236,8 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
             if (teamID != 0 && agentsByAddress.find(event.srcAgent) != agentsByAddress.end()) {
                 Agent& agent = agentsByAddress[event.srcAgent];
                 agent.teamID = teamID;
-                auto it = teamIDs.find(teamID);
-                if (it != teamIDs.end()) {
+                auto it = Settings::teamIDs.find(teamID);
+                if (it != Settings::teamIDs.end()) {
                     agent.team = it->second;
                 }
                 else {
