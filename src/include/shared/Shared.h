@@ -58,6 +58,15 @@ extern Texture* Virtuoso;
 extern Texture* Warrior;
 extern Texture* Weaver;
 extern Texture* Willbender;
+extern Texture* Amalgam;
+extern Texture* Antiquary;
+extern Texture* Conduit;
+extern Texture* Evoker;
+extern Texture* Galeshot;
+extern Texture* Luminary;
+extern Texture* Paragon;
+extern Texture* Ritualist;
+extern Texture* Troubadour;
 extern Texture* Death;
 extern Texture* Downed;
 extern Texture* Squad;
@@ -69,6 +78,23 @@ extern Texture* Home;
 extern Texture* Downcont;
 extern Texture* Killcont;
 extern Texture* Strips;
+extern Texture* PieBackground;
+extern Texture* PieGlobe;
+extern Texture* PieSeparator;
+
+extern ImFont* MenomoniaSansExtraSmall;
+extern ImFont* MenomoniaSansVerySmall;
+extern ImFont* MenomoniaSansSmall;
+extern ImFont* MenomoniaSansSmallMedium;
+extern ImFont* MenomoniaSansMediumSmall;
+extern ImFont* MenomoniaSansMediumish;
+extern ImFont* MenomoniaSansMedium;
+extern ImFont* MenomoniaSansMediumLarge;
+extern ImFont* MenomoniaSansLarge;
+extern ImFont* MenomoniaSansExtraLarge;
+extern ImFont* MenomoniaSansHuge;
+extern ImFont* MenomoniaSansExtraHuge;
+extern ImFont* MenomoniaSansMassive;
 
 
 extern std::atomic<bool> initialParsingComplete;
@@ -79,6 +105,10 @@ extern std::thread initialParsingThread;
 extern std::thread directoryMonitorThread;
 extern std::atomic<bool> isRestartInProgress;
 extern int currentLogIndex;
+
+// Animation triggers
+extern std::atomic<float> newLogDetectedTime;     // Time when new log was detected (0 = no animation)
+extern std::atomic<float> parseCompleteTime;      // Time when parsing completed (0 = no animation)
 
 
 struct TextureInfo {

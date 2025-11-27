@@ -266,7 +266,16 @@ std::unordered_map<std::string, TextureInfo> textureMap = {
     {"Virtuoso", {VIRTUOSO, &Virtuoso}},
     {"Core Warrior", {WARRIOR, &Warrior}},
     {"Weaver", {WEAVER, &Weaver}},
-    {"Willbender", {WILLBENDER, &Willbender}}
+    {"Willbender", {WILLBENDER, &Willbender}},
+    {"Amalgam", {AMALGAM, &Amalgam}},
+    {"Antiquary", {ANTIQUARY, &Antiquary}},
+    {"Conduit", {CONDUIT, &Conduit}},
+    {"Evoker", {EVOKER, &Evoker}},
+    {"Galeshot", {GALESHOT, &Galeshot}},
+    {"Luminary", {LUMINARY, &Luminary}},
+    {"Paragon", {PARAGON, &Paragon}},
+    {"Ritualist", {RITUALIST, &Ritualist}},
+    {"Troubadour", {TROUBADOUR, &Troubadour}}
 };
 
 ImVec4 GetTeamColor(const std::string& teamName)

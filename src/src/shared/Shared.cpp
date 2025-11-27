@@ -53,6 +53,15 @@ Texture* Virtuoso = nullptr;
 Texture* Warrior = nullptr;
 Texture* Weaver = nullptr;
 Texture* Willbender = nullptr;
+Texture* Amalgam = nullptr;
+Texture* Antiquary = nullptr;
+Texture* Conduit = nullptr;
+Texture* Evoker = nullptr;
+Texture* Galeshot = nullptr;
+Texture* Luminary = nullptr;
+Texture* Paragon = nullptr;
+Texture* Ritualist = nullptr;
+Texture* Troubadour = nullptr;
 Texture* Death = nullptr;
 Texture* Downed = nullptr;
 Texture* Squad = nullptr;
@@ -64,6 +73,23 @@ Texture* Home = nullptr;
 Texture* Downcont = nullptr;
 Texture* Killcont = nullptr;
 Texture* Strips = nullptr;
+Texture* PieBackground = nullptr;
+Texture* PieGlobe = nullptr;
+Texture* PieSeparator = nullptr;
+
+ImFont* MenomoniaSansExtraSmall = nullptr;
+ImFont* MenomoniaSansVerySmall = nullptr;
+ImFont* MenomoniaSansSmall = nullptr;
+ImFont* MenomoniaSansSmallMedium = nullptr;
+ImFont* MenomoniaSansMediumSmall = nullptr;
+ImFont* MenomoniaSansMediumish = nullptr;
+ImFont* MenomoniaSansMedium = nullptr;
+ImFont* MenomoniaSansMediumLarge = nullptr;
+ImFont* MenomoniaSansLarge = nullptr;
+ImFont* MenomoniaSansExtraLarge = nullptr;
+ImFont* MenomoniaSansHuge = nullptr;
+ImFont* MenomoniaSansExtraHuge = nullptr;
+ImFont* MenomoniaSansMassive = nullptr;
 
 // New definitions
 std::atomic<bool> initialParsingComplete{ false };
@@ -73,6 +99,10 @@ std::mutex processedFilesMutex;
 std::thread initialParsingThread;
 std::thread directoryMonitorThread;
 int currentLogIndex = 0;
+
+// Animation triggers
+std::atomic<float> newLogDetectedTime{ 0.0f };
+std::atomic<float> parseCompleteTime{ 0.0f };
 
 std::deque<ParsedLog> parsedLogs;
 

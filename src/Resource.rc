@@ -50,77 +50,95 @@ END
 // PNG
 //
 
-BERSERKER               PNG                     "assets\\berserker_16x16.png"
+BERSERKER               PNG                     "assets\\berserker_32x32.png"
 
-BLADESWORN              PNG                     "assets\\bladesworn_16x16.png"
+BLADESWORN              PNG                     "assets\\bladesworn_32x32.png"
 
-CATALYST                PNG                     "assets\\catalyst_16x16.png"
+CATALYST                PNG                     "assets\\catalyst_32x32.png"
 
-CHRONOMANCER            PNG                     "assets\\chronomancer_16x16.png"
+CHRONOMANCER            PNG                     "assets\\chronomancer_32x32.png"
 
-DAREDEVIL               PNG                     "assets\\daredevil_16x16.png"
+DAREDEVIL               PNG                     "assets\\daredevil_32x32.png"
 
-DEADEYE                 PNG                     "assets\\deadeye_16x16.png"
+DEADEYE                 PNG                     "assets\\deadeye_32x32.png"
 
-DRAGONHUNTER            PNG                     "assets\\dragonhunter_16x16.png"
+DRAGONHUNTER            PNG                     "assets\\dragonhunter_32x32.png"
 
-DRUID                   PNG                     "assets\\druid_16x16.png"
+DRUID                   PNG                     "assets\\druid_32x32.png"
 
-ELEMENTALIST            PNG                     "assets\\elementalist_16x16.png"
+ELEMENTALIST            PNG                     "assets\\elementalist_32x32.png"
 
-ENGINEER                PNG                     "assets\\engineer_16x16.png"
+ENGINEER                PNG                     "assets\\engineer_32x32.png"
 
-FIREBRAND               PNG                     "assets\\firebrand_16x16.png"
+FIREBRAND               PNG                     "assets\\firebrand_32x32.png"
 
-GUARDIAN                PNG                     "assets\\guardian_16x16.png"
+GUARDIAN                PNG                     "assets\\guardian_32x32.png"
 
-HARBINGER               PNG                     "assets\\harbinger_16x16.png"
+HARBINGER               PNG                     "assets\\harbinger_32x32.png"
 
-HERALD                  PNG                     "assets\\herald_16x16.png"
+HERALD                  PNG                     "assets\\herald_32x32.png"
 
-HOLOSMITH               PNG                     "assets\\holosmith_16x16.png"
+HOLOSMITH               PNG                     "assets\\holosmith_32x32.png"
 
-MECHANIST               PNG                     "assets\\mechanist_16x16.png"
+MECHANIST               PNG                     "assets\\mechanist_32x32.png"
 
-MESMER                  PNG                     "assets\\mesmer_16x16.png"
+MESMER                  PNG                     "assets\\mesmer_32x32.png"
 
-MIRAGE                  PNG                     "assets\\mirage_16x16.png"
+MIRAGE                  PNG                     "assets\\mirage_32x32.png"
 
-NECROMANCER             PNG                     "assets\\necromancer_16x16.png"
+NECROMANCER             PNG                     "assets\\necromancer_32x32.png"
 
-RANGER                  PNG                     "assets\\ranger_16x16.png"
+RANGER                  PNG                     "assets\\ranger_32x32.png"
 
-REAPER                  PNG                     "assets\\reaper_16x16.png"
+REAPER                  PNG                     "assets\\reaper_32x32.png"
 
-RENEGADE                PNG                     "assets\\renegade_16x16.png"
+RENEGADE                PNG                     "assets\\renegade_32x32.png"
 
-REVENANT                PNG                     "assets\\revenant_16x16.png"
+REVENANT                PNG                     "assets\\revenant_32x32.png"
 
-SCOURGE                 PNG                     "assets\\scourge_16x16.png"
+SCOURGE                 PNG                     "assets\\scourge_32x32.png"
 
-SCRAPPER                PNG                     "assets\\scrapper_16x16.png"
+SCRAPPER                PNG                     "assets\\scrapper_32x32.png"
 
-SOULBEAST               PNG                     "assets\\soulbeast_16x16.png"
+SOULBEAST               PNG                     "assets\\soulbeast_32x32.png"
 
-SPECTER                 PNG                     "assets\\specter_16x16.png"
+SPECTER                 PNG                     "assets\\specter_32x32.png"
 
-SPELLBREAKER            PNG                     "assets\\spellbreaker_16x16.png"
+SPELLBREAKER            PNG                     "assets\\spellbreaker_32x32.png"
 
-TEMPEST                 PNG                     "assets\\tempest_16x16.png"
+TEMPEST                 PNG                     "assets\\tempest_32x32.png"
 
-THIEF                   PNG                     "assets\\thief_16x16.png"
+THIEF                   PNG                     "assets\\thief_32x32.png"
 
-UNTAMED                 PNG                     "assets\\untamed_16x16.png"
+UNTAMED                 PNG                     "assets\\untamed_32x32.png"
 
-VINDICATOR              PNG                     "assets\\vindicator_16x16.png"
+VINDICATOR              PNG                     "assets\\vindicator_32x32.png"
 
-VIRTUOSO                PNG                     "assets\\virtuoso_16x16.png"
+VIRTUOSO                PNG                     "assets\\virtuoso_32x32.png"
 
-WARRIOR                 PNG                     "assets\\warrior_16x16.png"
+WARRIOR                 PNG                     "assets\\warrior_32x32.png"
 
-WEAVER                  PNG                     "assets\\weaver_16x16.png"
+WEAVER                  PNG                     "assets\\weaver_32x32.png"
 
-WILLBENDER              PNG                     "assets\\willbender_16x16.png"
+WILLBENDER              PNG                     "assets\\willbender_32x32.png"
+
+AMALGAM                 PNG                     "assets\\amalgam_32x32.png"
+
+ANTIQUARY               PNG                     "assets\\antiquary_32x32.png"
+
+CONDUIT                 PNG                     "assets\\conduit_32x32.png"
+
+EVOKER                  PNG                     "assets\\evoker_32x32.png"
+
+GALESHOT                PNG                     "assets\\galeshot_32x32.png"
+
+LUMINARY                PNG                     "assets\\luminary_32x32.png"
+
+PARAGON                 PNG                     "assets\\paragon_32x32.png"
+
+RITUALIST               PNG                     "assets\\ritualist_32x32.png"
+
+TROUBADOUR              PNG                     "assets\\troubadour_32x32.png"
 
 DEATH                   PNG                     "assets\\death_icon.png"
 
@@ -142,7 +160,21 @@ DOWNCONT                PNG                     "assets\\down_cont_icon.png"
 
 KILLCONT                PNG                     "assets\\kill_cont_icon.png"
 
-STRIPS                PNG                     "assets\\strips_icon.png"
+STRIPS                  PNG                     "assets\\strips_icon.png"
+
+PIE_BACKGROUND          PNG                     "assets\\pie_background.png"
+
+PIE_GLOBE               PNG                     "assets\\pie_globe.png"
+
+PIE_SEPARATOR           PNG                     "assets\\pie_seperator.png"
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// FONT
+//
+
+MENOMONIA_SANS_FONT     FONT                    "assets\\MenomoniaSans-Regular.ttf"
 
 #endif    // English (United States) resources
 /////////////////////////////////////////////////////////////////////////////

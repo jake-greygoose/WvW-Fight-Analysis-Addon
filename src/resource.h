@@ -38,6 +38,15 @@
 #define WARRIOR                         134
 #define WEAVER                          135
 #define WILLBENDER                      136
+#define AMALGAM                         152
+#define ANTIQUARY                       153
+#define CONDUIT                         154
+#define EVOKER                          155
+#define GALESHOT                        156
+#define LUMINARY                        157
+#define PARAGON                         158
+#define RITUALIST                       159
+#define TROUBADOUR                      160
 #define DEATH                           137
 #define DOWNED                          138
 #define SQUAD                           139
@@ -49,12 +58,16 @@
 #define DOWNCONT                        145
 #define KILLCONT                        146
 #define STRIPS                          147
+#define PIE_BACKGROUND                  148
+#define PIE_GLOBE                       149
+#define PIE_SEPARATOR                   150
+#define MENOMONIA_SANS_FONT             151
 
 // Next default values for new objects
-// 
+//
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        148
+#define _APS_NEXT_RESOURCE_VALUE        161
 #define _APS_NEXT_COMMAND_VALUE         40001
 #define _APS_NEXT_CONTROL_VALUE         1001
 #define _APS_NEXT_SYMED_VALUE           101
