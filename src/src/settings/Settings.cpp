@@ -15,18 +15,19 @@ const char* USE_NEXUS_ESC_CLOSE = "UseNexusEscClose";
 const char* DEBUG_STRINGS_MODE = "debugStringsMode";
 const char* TEAM_IDS = "TeamIDs";
 
-// Default team IDs that ship with the addon
+// Default team IDs
+// I will keep all the old ones as I don't know the pattern of if they get reused etc
 // These are always merged with user's custom team IDs
 static const std::unordered_map<int, std::string> DEFAULT_TEAM_IDS = {
     // Red team IDs
     {697, "Red"}, {699, "Red"}, {705, "Red"}, {706, "Red"},
-    {707, "Red"}, {882, "Red"}, {885, "Red"}, {2520, "Red"},
+    {707, "Red"}, {882, "Red"}, {885, "Red"}, {886, "Red"}, {2520, "Red"},
     // Green team IDs
     {39, "Green"}, {2739, "Green"}, {2741, "Green"},
     {2752, "Green"}, {2763, "Green"}, {2767, "Green"},
     // Blue team IDs
     {432, "Blue"}, {433, "Blue"}, {1277, "Blue"},
-    {1281, "Blue"}, {1989, "Blue"}, {1996, "Blue"}
+    {1281, "Blue"}, {1282, "Blue"}, {1989, "Blue"}, {1996, "Blue"}
 };
 
 BaseWindowSettings::BaseWindowSettings(const json& j, const std::string& idPrefix) {
