@@ -10,3 +10,6 @@
 [submodule "src/include/thirdparty/imgui_positioning"]
 	path = src/include/thirdparty/imgui_positioning
 	url = https://github.com/RaidcoreGG/imgui_positioning.git
+[submodule "src/include/thirdparty/ImAnimate"]
+	path = src/include/thirdparty/ImAnimate
+	url = https://github.com/RaidcoreGG/ImAnimate.git
