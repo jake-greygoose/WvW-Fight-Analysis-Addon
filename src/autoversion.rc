@@ -2,8 +2,8 @@
 #include <winver.h>
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 2025,10,31,1322
- PRODUCTVERSION 2025,10,31,1322
+ FILEVERSION 2025,11,27,958
+ PRODUCTVERSION 2025,11,27,958
  FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
  FILEFLAGS 0x0L
  FILEOS VOS_NT_WINDOWS32
@@ -15,11 +15,11 @@ BEGIN
         BLOCK "040904E4"
         BEGIN
             VALUE "FileDescription", "WvW Fight Analysis"
-            VALUE "FileVersion", "2025.10.31.1322"
+            VALUE "FileVersion", "2025.11.27.0958"
             VALUE "InternalName", "WvW Fight Analysis"
             VALUE "OriginalFilename", "WvWFightAnalysis.dll"
             VALUE "ProductName", "WvW Fight Analysis"
-            VALUE "ProductVersion", "2025.10.31.1322"
+            VALUE "ProductVersion", "2025.11.27.0958"
         END
     END
     BLOCK "VarFileInfo"

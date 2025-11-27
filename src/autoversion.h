@@ -7,7 +7,7 @@
 inline void SeedAddonVersionFromBuild(AddonDefinition& def)
 {
     def.Version.Major = 2025;
-    def.Version.Minor = 10;
-    def.Version.Build = 31;
-    def.Version.Revision = 1322;
+    def.Version.Minor = 11;
+    def.Version.Build = 27;
+    def.Version.Revision = 958;
 }

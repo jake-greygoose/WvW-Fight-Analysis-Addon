@@ -1055,6 +1055,9 @@ void processNewEVTCFile(const std::string& filePath)
 	std::filesystem::path path(filePath);
 	std::string filename = path.filename().string();
 
+	// Trigger "new log detected" animation
+	newLogDetectedTime.store(ImGui::GetTime());
+
 	ParsedLog log;
 	log.filename = filename;
 	log.data = parseEVTCFile(filePath);
@@ -1165,6 +1168,9 @@ void processNewEVTCFile(const std::string& filePath)
 		std::string displayName = generateLogDisplayName(log.filename, log.data.combatStartTime, log.data.combatEndTime);
 		APIDefs->UI.SendAlert(("Parsed New Log: " + displayName).c_str());
 	}
+
+	// Trigger "parsing complete" animation
+	parseCompleteTime.store(ImGui::GetTime());
 }
 
 

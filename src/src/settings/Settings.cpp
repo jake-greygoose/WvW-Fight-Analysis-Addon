@@ -159,12 +159,14 @@ json WidgetWindowSettings::toJson() const {
     j["largerFont"] = largerFont;
     j["widgetWidth"] = widgetWidth;
     j["widgetHeight"] = widgetHeight;
+    j["pieChartSize"] = pieChartSize;
     j["textVerticalAlignOffset"] = textVerticalAlignOffset;
     j["textHorizontalAlignOffset"] = textHorizontalAlignOffset;
     j["showWidgetIcon"] = showWidgetIcon;
-    j["widgetStats"] = widgetStats; 
+    j["widgetStats"] = widgetStats;
     j["widgetBorderThickness"] = widgetBorderThickness;
     j["widgetRoundness"] = widgetRoundness;
+    j["usePieChartStyle"] = usePieChartStyle;
     // Color settings
     j["colors"] = {
         {"redBackground", colors.redBackground},
@@ -269,12 +271,14 @@ WidgetWindowSettings::WidgetWindowSettings(const json& j) : BaseWindowSettings(j
         largerFont = j.value("largerFont", largerFont);
         widgetWidth = j.value("widgetWidth", widgetWidth);
         widgetHeight = j.value("widgetHeight", widgetHeight);
+        pieChartSize = j.value("pieChartSize", pieChartSize);
         textVerticalAlignOffset = j.value("textVerticalAlignOffset", textVerticalAlignOffset);
         textHorizontalAlignOffset = j.value("textHorizontalAlignOffset", textHorizontalAlignOffset);
         showWidgetIcon = j.value("showWidgetIcon", showWidgetIcon);
         widgetStats = j.value("widgetStats", widgetStats);
         widgetRoundness = j.value("widgetRoundness", widgetRoundness);
         widgetBorderThickness = j.value("widgetBorderThickness", widgetBorderThickness);
+        usePieChartStyle = j.value("usePieChartStyle", usePieChartStyle);
 
         if (j.contains("colors")) {
             const auto& colorsJson = j["colors"];

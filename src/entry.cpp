@@ -7,6 +7,7 @@
 #include "utils/Utils.h"
 #include "parser/evtc_parser.h"
 #include "integration/MursaatPanelIntegration.h"
+#include "resource.h"
 
 #include "autoversion.h"
 
@@ -18,9 +19,53 @@ void AddonUnload();
 void AddonRender();
 void AddonOptions();
 void ProcessKeybinds(const char* aIdentifier, bool aIsRelease);
+void ReceiveFont(const char* aIdentifier, void* aFont);
 
 AddonDefinition AddonDef = {};
 std::unique_ptr<wvwfightanalysis::gui::WindowRenderer> g_windowRenderer;
+
+// Font loading callback
+void ReceiveFont(const char* aIdentifier, void* aFont) {
+    if (strcmp(aIdentifier, "MENOMONIA_EXTRA_SMALL") == 0) {
+        MenomoniaSansExtraSmall = (ImFont*)aFont;
+    }
+    else if (strcmp(aIdentifier, "MENOMONIA_VERY_SMALL") == 0) {
+        MenomoniaSansVerySmall = (ImFont*)aFont;
+    }
+    else if (strcmp(aIdentifier, "MENOMONIA_SMALL") == 0) {
+        MenomoniaSansSmall = (ImFont*)aFont;
+    }
+    else if (strcmp(aIdentifier, "MENOMONIA_SMALL_MEDIUM") == 0) {
+        MenomoniaSansSmallMedium = (ImFont*)aFont;
+    }
+    else if (strcmp(aIdentifier, "MENOMONIA_MEDIUM_SMALL") == 0) {
+        MenomoniaSansMediumSmall = (ImFont*)aFont;
+    }
+    else if (strcmp(aIdentifier, "MENOMONIA_MEDIUMISH") == 0) {
+        MenomoniaSansMediumish = (ImFont*)aFont;
+    }
+    else if (strcmp(aIdentifier, "MENOMONIA_MEDIUM") == 0) {
+        MenomoniaSansMedium = (ImFont*)aFont;
+    }
+    else if (strcmp(aIdentifier, "MENOMONIA_MEDIUM_LARGE") == 0) {
+        MenomoniaSansMediumLarge = (ImFont*)aFont;
+    }
+    else if (strcmp(aIdentifier, "MENOMONIA_LARGE") == 0) {
+        MenomoniaSansLarge = (ImFont*)aFont;
+    }
+    else if (strcmp(aIdentifier, "MENOMONIA_EXTRA_LARGE") == 0) {
+        MenomoniaSansExtraLarge = (ImFont*)aFont;
+    }
+    else if (strcmp(aIdentifier, "MENOMONIA_HUGE") == 0) {
+        MenomoniaSansHuge = (ImFont*)aFont;
+    }
+    else if (strcmp(aIdentifier, "MENOMONIA_EXTRA_HUGE") == 0) {
+        MenomoniaSansExtraHuge = (ImFont*)aFont;
+    }
+    else if (strcmp(aIdentifier, "MENOMONIA_MASSIVE") == 0) {
+        MenomoniaSansMassive = (ImFont*)aFont;
+    }
+}
 
 
 void AddonLoad(AddonAPI* aApi) {
@@ -40,6 +85,21 @@ void AddonLoad(AddonAPI* aApi) {
     std::filesystem::create_directory(AddonPath);
     Settings::Load(SettingsPath);
     initMaps();
+
+    // Load custom fonts in multiple sizes
+    APIDefs->Fonts.AddFromResource("MENOMONIA_EXTRA_SMALL", 10.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
+    APIDefs->Fonts.AddFromResource("MENOMONIA_VERY_SMALL", 12.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
+    APIDefs->Fonts.AddFromResource("MENOMONIA_SMALL", 14.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
+    APIDefs->Fonts.AddFromResource("MENOMONIA_SMALL_MEDIUM", 15.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
+    APIDefs->Fonts.AddFromResource("MENOMONIA_MEDIUM_SMALL", 17.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
+    APIDefs->Fonts.AddFromResource("MENOMONIA_MEDIUMISH", 18.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
+    APIDefs->Fonts.AddFromResource("MENOMONIA_MEDIUM", 20.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
+    APIDefs->Fonts.AddFromResource("MENOMONIA_MEDIUM_LARGE", 26.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
+    APIDefs->Fonts.AddFromResource("MENOMONIA_LARGE", 32.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
+    APIDefs->Fonts.AddFromResource("MENOMONIA_EXTRA_LARGE", 40.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
+    APIDefs->Fonts.AddFromResource("MENOMONIA_HUGE", 50.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
+    APIDefs->Fonts.AddFromResource("MENOMONIA_EXTRA_HUGE", 64.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
+    APIDefs->Fonts.AddFromResource("MENOMONIA_MASSIVE", 80.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
 
     g_windowRenderer = std::make_unique<wvwfightanalysis::gui::WindowRenderer>();
 
@@ -81,6 +141,10 @@ void AddonLoad(AddonAPI* aApi) {
 }
 
 void AddonUnload() {
+    // IMPORTANT: Stop rendering BEFORE releasing resources
+    APIDefs->Renderer.Deregister(AddonRender);
+    APIDefs->Renderer.Deregister(AddonOptions);
+
     stopMonitoring = true;
     if (directoryMonitorThread.joinable()) {
         directoryMonitorThread.join();
@@ -88,7 +152,24 @@ void AddonUnload() {
     if (initialParsingThread.joinable()) {
         initialParsingThread.join();
     }
+
+    // Now safe to destroy window renderer
     g_windowRenderer.reset();
+
+    // Release custom fonts after rendering has stopped
+    APIDefs->Fonts.Release("MENOMONIA_EXTRA_SMALL", ReceiveFont);
+    APIDefs->Fonts.Release("MENOMONIA_VERY_SMALL", ReceiveFont);
+    APIDefs->Fonts.Release("MENOMONIA_SMALL", ReceiveFont);
+    APIDefs->Fonts.Release("MENOMONIA_SMALL_MEDIUM", ReceiveFont);
+    APIDefs->Fonts.Release("MENOMONIA_MEDIUM_SMALL", ReceiveFont);
+    APIDefs->Fonts.Release("MENOMONIA_MEDIUMISH", ReceiveFont);
+    APIDefs->Fonts.Release("MENOMONIA_MEDIUM", ReceiveFont);
+    APIDefs->Fonts.Release("MENOMONIA_MEDIUM_LARGE", ReceiveFont);
+    APIDefs->Fonts.Release("MENOMONIA_LARGE", ReceiveFont);
+    APIDefs->Fonts.Release("MENOMONIA_EXTRA_LARGE", ReceiveFont);
+    APIDefs->Fonts.Release("MENOMONIA_HUGE", ReceiveFont);
+    APIDefs->Fonts.Release("MENOMONIA_EXTRA_HUGE", ReceiveFont);
+    APIDefs->Fonts.Release("MENOMONIA_MASSIVE", ReceiveFont);
 
     for (auto& mainWindow : Settings::windowManager.mainWindows) {
         if (mainWindow->useNexusEscClose) {
@@ -106,8 +187,6 @@ void AddonUnload() {
         APIDefs->UI.DeregisterCloseOnEscape(Settings::windowManager.aggregateWindow->windowId.c_str());
     }
 
-    APIDefs->Renderer.Deregister(AddonRender);
-    APIDefs->Renderer.Deregister(AddonOptions);
     APIDefs->InputBinds.Deregister("KB_WINDOW_TOGGLEVISIBLE");
     APIDefs->InputBinds.Deregister("KB_WIDGET_TOGGLEVISIBLE");
     APIDefs->InputBinds.Deregister("LOG_INDEX_UP");

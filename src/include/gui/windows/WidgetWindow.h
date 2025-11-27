@@ -32,5 +32,15 @@ namespace wvwfightanalysis::gui {
             const std::vector<ImVec4>& textColors,
             const std::vector<size_t>& teamIndices
         );
+
+        void RenderPieChart(
+            HINSTANCE hSelf,
+            const std::vector<float>& counts,
+            const std::vector<ImVec4>& colors,
+            const ImVec2& size,
+            const WidgetWindowSettings* settings,
+            const std::vector<const char*>& texts,
+            const std::vector<ImVec4>& textColors
+        );
     };
 } // namespace wvwfightanalysis::gui

@@ -122,12 +122,14 @@ struct WidgetWindowSettings : public BaseWindowSettings {
     bool largerFont = false;
     float widgetWidth = 320.0f;
     float widgetHeight = 20.0f;
+    float pieChartSize = 250.0f;  // Size for pie chart (square)
     float textVerticalAlignOffset = 0.0f;
     float textHorizontalAlignOffset = 0.0f;
     bool showWidgetIcon = true;
     std::string widgetStats = "players";
     float widgetBorderThickness = 0.0f;
     float widgetRoundness = 0.0f;
+    bool usePieChartStyle = false;  // Toggle between horizontal bar and pie chart
 
     struct Colors {
         // Normal colors
