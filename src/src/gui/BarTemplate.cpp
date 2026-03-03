@@ -266,8 +266,10 @@ void BarTemplateRenderer::RenderVariable(
         }
         else {
             if (resourceId != 0 && texturePtrPtr) {
+                std::string textureIdentifier = eliteSpec + "_ICON";
+                textureIdentifier += "_MODE_" + std::to_string(Settings::scrapperIconStyle);
                 *texturePtrPtr = APIDefs->Textures.GetOrCreateFromResource(
-                    (eliteSpec + "_ICON").c_str(), resourceId, hSelf
+                    textureIdentifier.c_str(), resourceId, hSelf
                 );
                 if (*texturePtrPtr && (*texturePtrPtr)->Resource) {
                     ImGui::Image((*texturePtrPtr)->Resource, ImVec2(icon_size, icon_size));

@@ -50,95 +50,365 @@ END
 // PNG
 //
 
-BERSERKER               PNG                     "assets\\berserker_32x32.png"
+BERSERKER                PNG                     "assets\\Berserker_32.png"
 
-BLADESWORN              PNG                     "assets\\bladesworn_32x32.png"
+BERSERKER_WHITE          PNG                     "assets\\Berserker_White_32.png"
 
-CATALYST                PNG                     "assets\\catalyst_32x32.png"
+BERSERKER_SIMPLE         PNG                     "assets\\Berserker_Simple_32.png"
 
-CHRONOMANCER            PNG                     "assets\\chronomancer_32x32.png"
+BERSERKER_SIMPLE_WHITE   PNG                     "assets\\Berserker_Simple_White_32.png"
 
-DAREDEVIL               PNG                     "assets\\daredevil_32x32.png"
+BLADESWORN               PNG                     "assets\\Bladesworn_32.png"
 
-DEADEYE                 PNG                     "assets\\deadeye_32x32.png"
+BLADESWORN_WHITE         PNG                     "assets\\Bladesworn_White_32.png"
 
-DRAGONHUNTER            PNG                     "assets\\dragonhunter_32x32.png"
+BLADESWORN_SIMPLE        PNG                     "assets\\Bladesworn_Simple_32.png"
 
-DRUID                   PNG                     "assets\\druid_32x32.png"
+BLADESWORN_SIMPLE_WHITE  PNG                     "assets\\Bladesworn_Simple_White_32.png"
 
-ELEMENTALIST            PNG                     "assets\\elementalist_32x32.png"
+CATALYST                 PNG                     "assets\\Catalyst_32.png"
 
-ENGINEER                PNG                     "assets\\engineer_32x32.png"
+CATALYST_WHITE           PNG                     "assets\\Catalyst_White_32.png"
 
-FIREBRAND               PNG                     "assets\\firebrand_32x32.png"
+CATALYST_SIMPLE          PNG                     "assets\\Catalyst_Simple_32.png"
 
-GUARDIAN                PNG                     "assets\\guardian_32x32.png"
+CATALYST_SIMPLE_WHITE    PNG                     "assets\\Catalyst_Simple_White_32.png"
 
-HARBINGER               PNG                     "assets\\harbinger_32x32.png"
+CHRONOMANCER             PNG                     "assets\\Chronomancer_32.png"
 
-HERALD                  PNG                     "assets\\herald_32x32.png"
+CHRONOMANCER_WHITE       PNG                     "assets\\Chronomancer_White_32.png"
 
-HOLOSMITH               PNG                     "assets\\holosmith_32x32.png"
+CHRONOMANCER_SIMPLE      PNG                     "assets\\Chronomancer_Simple_32.png"
 
-MECHANIST               PNG                     "assets\\mechanist_32x32.png"
+CHRONOMANCER_SIMPLE_WHITE PNG                     "assets\\Chronomancer_Simple_White_32.png"
 
-MESMER                  PNG                     "assets\\mesmer_32x32.png"
+DAREDEVIL                PNG                     "assets\\Daredevil_32.png"
 
-MIRAGE                  PNG                     "assets\\mirage_32x32.png"
+DAREDEVIL_WHITE          PNG                     "assets\\Daredevil_White_32.png"
 
-NECROMANCER             PNG                     "assets\\necromancer_32x32.png"
+DAREDEVIL_SIMPLE         PNG                     "assets\\Daredevil_Simple_32.png"
 
-RANGER                  PNG                     "assets\\ranger_32x32.png"
+DAREDEVIL_SIMPLE_WHITE   PNG                     "assets\\Daredevil_Simple_White_32.png"
 
-REAPER                  PNG                     "assets\\reaper_32x32.png"
+DEADEYE                  PNG                     "assets\\Deadeye_32.png"
 
-RENEGADE                PNG                     "assets\\renegade_32x32.png"
+DEADEYE_WHITE            PNG                     "assets\\Deadeye_White_32.png"
 
-REVENANT                PNG                     "assets\\revenant_32x32.png"
+DEADEYE_SIMPLE           PNG                     "assets\\Deadeye_Simple_32.png"
 
-SCOURGE                 PNG                     "assets\\scourge_32x32.png"
+DEADEYE_SIMPLE_WHITE     PNG                     "assets\\Deadeye_Simple_White_32.png"
 
-SCRAPPER                PNG                     "assets\\scrapper_32x32.png"
+DRAGONHUNTER             PNG                     "assets\\Dragonhunter_32.png"
 
-SOULBEAST               PNG                     "assets\\soulbeast_32x32.png"
+DRAGONHUNTER_WHITE       PNG                     "assets\\Dragonhunter_White_32.png"
 
-SPECTER                 PNG                     "assets\\specter_32x32.png"
+DRAGONHUNTER_SIMPLE      PNG                     "assets\\Dragonhunter_Simple_32.png"
 
-SPELLBREAKER            PNG                     "assets\\spellbreaker_32x32.png"
+DRAGONHUNTER_SIMPLE_WHITE PNG                     "assets\\Dragonhunter_Simple_White_32.png"
 
-TEMPEST                 PNG                     "assets\\tempest_32x32.png"
+DRUID                    PNG                     "assets\\Druid_1000_Square_32.png"
 
-THIEF                   PNG                     "assets\\thief_32x32.png"
+DRUID_WHITE              PNG                     "assets\\Druid_1000_Square_32.png"
 
-UNTAMED                 PNG                     "assets\\untamed_32x32.png"
+DRUID_SIMPLE             PNG                     "assets\\Druid_Simple_32.png"
 
-VINDICATOR              PNG                     "assets\\vindicator_32x32.png"
+DRUID_SIMPLE_WHITE       PNG                     "assets\\Druid_Simple_White_32.png"
 
-VIRTUOSO                PNG                     "assets\\virtuoso_32x32.png"
+ELEMENTALIST             PNG                     "assets\\Elementalist_32.png"
 
-WARRIOR                 PNG                     "assets\\warrior_32x32.png"
+ELEMENTALIST_WHITE       PNG                     "assets\\Elementalist_White_32.png"
 
-WEAVER                  PNG                     "assets\\weaver_32x32.png"
+ELEMENTALIST_SIMPLE      PNG                     "assets\\Elementalist_Simple_32.png"
 
-WILLBENDER              PNG                     "assets\\willbender_32x32.png"
+ELEMENTALIST_SIMPLE_WHITE PNG                     "assets\\Elementalist_Simple_White_32.png"
 
-AMALGAM                 PNG                     "assets\\amalgam_32x32.png"
+ENGINEER                 PNG                     "assets\\Engineer_32.png"
 
-ANTIQUARY               PNG                     "assets\\antiquary_32x32.png"
+ENGINEER_WHITE           PNG                     "assets\\Engineer_White_32.png"
 
-CONDUIT                 PNG                     "assets\\conduit_32x32.png"
+ENGINEER_SIMPLE          PNG                     "assets\\Engineer_Simple_32.png"
 
-EVOKER                  PNG                     "assets\\evoker_32x32.png"
+ENGINEER_SIMPLE_WHITE    PNG                     "assets\\Engineer_Simple_White_32.png"
 
-GALESHOT                PNG                     "assets\\galeshot_32x32.png"
+FIREBRAND                PNG                     "assets\\Firebrand_32.png"
 
-LUMINARY                PNG                     "assets\\luminary_32x32.png"
+FIREBRAND_WHITE          PNG                     "assets\\Firebrand_White_32.png"
 
-PARAGON                 PNG                     "assets\\paragon_32x32.png"
+FIREBRAND_SIMPLE         PNG                     "assets\\Firebrand_Simple_32.png"
 
-RITUALIST               PNG                     "assets\\ritualist_32x32.png"
+FIREBRAND_SIMPLE_WHITE   PNG                     "assets\\Firebrand_Simple_White_32.png"
 
-TROUBADOUR              PNG                     "assets\\troubadour_32x32.png"
+GUARDIAN                 PNG                     "assets\\Guardian_32.png"
+
+GUARDIAN_WHITE           PNG                     "assets\\Guardian_White_32.png"
+
+GUARDIAN_SIMPLE          PNG                     "assets\\Guardian_Simple_32.png"
+
+GUARDIAN_SIMPLE_WHITE    PNG                     "assets\\Guardian_Simple_White_32.png"
+
+HARBINGER                PNG                     "assets\\Harbinger_32.png"
+
+HARBINGER_WHITE          PNG                     "assets\\Harbinger_White_32.png"
+
+HARBINGER_SIMPLE         PNG                     "assets\\Harbinger_Simple_32.png"
+
+HARBINGER_SIMPLE_WHITE   PNG                     "assets\\Harbinger_Simple_White_32.png"
+
+HERALD                   PNG                     "assets\\Herald_32.png"
+
+HERALD_WHITE             PNG                     "assets\\Herald_White_32.png"
+
+HERALD_SIMPLE            PNG                     "assets\\Herald_Simple_32.png"
+
+HERALD_SIMPLE_WHITE      PNG                     "assets\\Herald_Simple_White_32.png"
+
+HOLOSMITH                PNG                     "assets\\Holosmith_32.png"
+
+HOLOSMITH_WHITE          PNG                     "assets\\Holosmith_White_32.png"
+
+HOLOSMITH_SIMPLE         PNG                     "assets\\Holosmith_Simple_32.png"
+
+HOLOSMITH_SIMPLE_WHITE   PNG                     "assets\\Holosmith_Simple_White_32.png"
+
+MECHANIST                PNG                     "assets\\Mechanist_32.png"
+
+MECHANIST_WHITE          PNG                     "assets\\Mechanist_White_32.png"
+
+MECHANIST_SIMPLE         PNG                     "assets\\Mechanist_Simple_32.png"
+
+MECHANIST_SIMPLE_WHITE   PNG                     "assets\\Mechanist_Simple_White_32.png"
+
+MESMER                   PNG                     "assets\\Mesmer_32.png"
+
+MESMER_WHITE             PNG                     "assets\\Mesmer_White_32.png"
+
+MESMER_SIMPLE            PNG                     "assets\\Mesmer_Simple_32.png"
+
+MESMER_SIMPLE_WHITE      PNG                     "assets\\Mesmer_Simple_White_32.png"
+
+MIRAGE                   PNG                     "assets\\Mirage_32.png"
+
+MIRAGE_WHITE             PNG                     "assets\\Mirage_White_32.png"
+
+MIRAGE_SIMPLE            PNG                     "assets\\Mirage_Simple_32.png"
+
+MIRAGE_SIMPLE_WHITE      PNG                     "assets\\Mirage_Simple_White_32.png"
+
+NECROMANCER              PNG                     "assets\\Necromancer_32.png"
+
+NECROMANCER_WHITE        PNG                     "assets\\Necromancer_White_32.png"
+
+NECROMANCER_SIMPLE       PNG                     "assets\\Necromancer_Simple_32.png"
+
+NECROMANCER_SIMPLE_WHITE PNG                     "assets\\Necromancer_Simple_White_32.png"
+
+RANGER                   PNG                     "assets\\Ranger_32.png"
+
+RANGER_WHITE             PNG                     "assets\\Ranger_White_32.png"
+
+RANGER_SIMPLE            PNG                     "assets\\Ranger_Simple_32.png"
+
+RANGER_SIMPLE_WHITE      PNG                     "assets\\Ranger_Simple_White_32.png"
+
+REAPER                   PNG                     "assets\\Reaper_32.png"
+
+REAPER_WHITE             PNG                     "assets\\Reaper_White_32.png"
+
+REAPER_SIMPLE            PNG                     "assets\\Reaper_Simple_32.png"
+
+REAPER_SIMPLE_WHITE      PNG                     "assets\\Reaper_Simple_White_32.png"
+
+RENEGADE                 PNG                     "assets\\Renegade_32.png"
+
+RENEGADE_WHITE           PNG                     "assets\\Renegade_White_32.png"
+
+RENEGADE_SIMPLE          PNG                     "assets\\Renegade_Simple_32.png"
+
+RENEGADE_SIMPLE_WHITE    PNG                     "assets\\Renegade_Simple_White_32.png"
+
+REVENANT                 PNG                     "assets\\Revenant_32.png"
+
+REVENANT_WHITE           PNG                     "assets\\Revenant_White_32.png"
+
+REVENANT_SIMPLE          PNG                     "assets\\Revenant_Simple_32.png"
+
+REVENANT_SIMPLE_WHITE    PNG                     "assets\\Revenant_Simple_White_32.png"
+
+SCRAPPER                 PNG                     "assets\\Scrapper_32.png"
+
+SCRAPPER_WHITE           PNG                     "assets\\Scrapper_White_32.png"
+
+SCRAPPER_SIMPLE          PNG                     "assets\\Scrapper_Simple_32.png"
+
+SCRAPPER_SIMPLE_WHITE    PNG                     "assets\\Scrapper_Simple_White_32.png"
+
+SCOURGE                  PNG                     "assets\\Scourge_32.png"
+
+SCOURGE_WHITE            PNG                     "assets\\Scourge_White_32.png"
+
+SCOURGE_SIMPLE           PNG                     "assets\\Scourge_Simple_32.png"
+
+SCOURGE_SIMPLE_WHITE     PNG                     "assets\\Scourge_Simple_White_32.png"
+
+SOULBEAST                PNG                     "assets\\Soulbeast_32.png"
+
+SOULBEAST_WHITE          PNG                     "assets\\Soulbeast_White_32.png"
+
+SOULBEAST_SIMPLE         PNG                     "assets\\Soulbeast_Simple_32.png"
+
+SOULBEAST_SIMPLE_WHITE   PNG                     "assets\\Soulbeast_Simple_White_32.png"
+
+SPECTER                  PNG                     "assets\\Specter_32.png"
+
+SPECTER_WHITE            PNG                     "assets\\Specter_White_32.png"
+
+SPECTER_SIMPLE           PNG                     "assets\\Specter_Simple_32.png"
+
+SPECTER_SIMPLE_WHITE     PNG                     "assets\\Specter_Simple_White_32.png"
+
+SPELLBREAKER             PNG                     "assets\\Spellbreaker_32.png"
+
+SPELLBREAKER_WHITE       PNG                     "assets\\Spellbreaker_White_32.png"
+
+SPELLBREAKER_SIMPLE      PNG                     "assets\\Spellbreaker_32.png"
+
+SPELLBREAKER_SIMPLE_WHITE PNG                     "assets\\Spellbreaker_Simple_White_32.png"
+
+TEMPEST                  PNG                     "assets\\Tempest_32.png"
+
+TEMPEST_WHITE            PNG                     "assets\\Tempest_White_32.png"
+
+TEMPEST_SIMPLE           PNG                     "assets\\Tempest_Simple_32.png"
+
+TEMPEST_SIMPLE_WHITE     PNG                     "assets\\Tempest_Simple_White_32.png"
+
+THIEF                    PNG                     "assets\\Thief_32.png"
+
+THIEF_WHITE              PNG                     "assets\\Thief_White_32.png"
+
+THIEF_SIMPLE             PNG                     "assets\\Thief_Simple_32.png"
+
+THIEF_SIMPLE_WHITE       PNG                     "assets\\Thief_Simple_White_32.png"
+
+UNTAMED                  PNG                     "assets\\Untamed_32.png"
+
+UNTAMED_WHITE            PNG                     "assets\\Untamed_White_32.png"
+
+UNTAMED_SIMPLE           PNG                     "assets\\Untamed_Simple_32.png"
+
+UNTAMED_SIMPLE_WHITE     PNG                     "assets\\Untamed_Simple_White_32.png"
+
+VINDICATOR               PNG                     "assets\\Vindicator_32.png"
+
+VINDICATOR_WHITE         PNG                     "assets\\Vindicator_White_32.png"
+
+VINDICATOR_SIMPLE        PNG                     "assets\\Vindicator_Simple_32.png"
+
+VINDICATOR_SIMPLE_WHITE  PNG                     "assets\\Vindicator_Simple_White_32.png"
+
+VIRTUOSO                 PNG                     "assets\\Virtuoso_32.png"
+
+VIRTUOSO_WHITE           PNG                     "assets\\Virtuoso_White_32.png"
+
+VIRTUOSO_SIMPLE          PNG                     "assets\\Virtuoso_Simple_32.png"
+
+VIRTUOSO_SIMPLE_WHITE    PNG                     "assets\\Virtuoso_Simple_White_32.png"
+
+WARRIOR                  PNG                     "assets\\Warrior_32.png"
+
+WARRIOR_WHITE            PNG                     "assets\\Warrior_White_32.png"
+
+WARRIOR_SIMPLE           PNG                     "assets\\Warrior_Simple_32.png"
+
+WARRIOR_SIMPLE_WHITE     PNG                     "assets\\Warrior_Simple_White_32.png"
+
+WEAVER                   PNG                     "assets\\Weaver_32.png"
+
+WEAVER_WHITE             PNG                     "assets\\Weaver_White_32.png"
+
+WEAVER_SIMPLE            PNG                     "assets\\Weaver_Simple_32.png"
+
+WEAVER_SIMPLE_WHITE      PNG                     "assets\\Weaver_Simple_White_32.png"
+
+WILLBENDER               PNG                     "assets\\Willbender_32.png"
+
+WILLBENDER_WHITE         PNG                     "assets\\Willbender_White_32.png"
+
+WILLBENDER_SIMPLE        PNG                     "assets\\Willbender_Simple_32.png"
+
+WILLBENDER_SIMPLE_WHITE  PNG                     "assets\\Willbender_Simple_White_32.png"
+
+AMALGAM                  PNG                     "assets\\Amalgam_32.png"
+
+AMALGAM_WHITE            PNG                     "assets\\Amalgam_White_32.png"
+
+AMALGAM_SIMPLE           PNG                     "assets\\Amalgam_Simple_32.png"
+
+AMALGAM_SIMPLE_WHITE     PNG                     "assets\\Amalgam_Simple_White_32.png"
+
+ANTIQUARY                PNG                     "assets\\Antiquary_32.png"
+
+ANTIQUARY_WHITE          PNG                     "assets\\Antiquary White_32.png"
+
+ANTIQUARY_SIMPLE         PNG                     "assets\\Antiquary_Simple_32.png"
+
+ANTIQUARY_SIMPLE_WHITE   PNG                     "assets\\Antiquary_Simple_White_32.png"
+
+CONDUIT                  PNG                     "assets\\Conduit_32.png"
+
+CONDUIT_WHITE            PNG                     "assets\\Conduit_White_32.png"
+
+CONDUIT_SIMPLE           PNG                     "assets\\Conduit_Simple_32.png"
+
+CONDUIT_SIMPLE_WHITE     PNG                     "assets\\Conduit_Simple_White_32.png"
+
+EVOKER                   PNG                     "assets\\Evoker_32.png"
+
+EVOKER_WHITE             PNG                     "assets\\Evoker_White_32.png"
+
+EVOKER_SIMPLE            PNG                     "assets\\Evoker_Simple_32.png"
+
+EVOKER_SIMPLE_WHITE      PNG                     "assets\\Evoker_Simple_White_32.png"
+
+GALESHOT                 PNG                     "assets\\Galeshot_32.png"
+
+GALESHOT_WHITE           PNG                     "assets\\Galeshot_White_32.png"
+
+GALESHOT_SIMPLE          PNG                     "assets\\Galeshot_Simple_32.png"
+
+GALESHOT_SIMPLE_WHITE    PNG                     "assets\\Galeshot_Simple_White_32.png"
+
+LUMINARY                 PNG                     "assets\\Luminary 32.png"
+
+LUMINARY_WHITE           PNG                     "assets\\Luminary_White_32.png"
+
+LUMINARY_SIMPLE          PNG                     "assets\\Luminary_Simple_32.png"
+
+LUMINARY_SIMPLE_WHITE    PNG                     "assets\\Luminary_Simple_White_32.png"
+
+PARAGON                  PNG                     "assets\\Paragon_32.png"
+
+PARAGON_WHITE            PNG                     "assets\\Paragon_White_32.png"
+
+PARAGON_SIMPLE           PNG                     "assets\\Paragon_Simple_32.png"
+
+PARAGON_SIMPLE_WHITE     PNG                     "assets\\Paragon_Simple_White_32.png"
+
+RITUALIST                PNG                     "assets\\Ritualist_32.png"
+
+RITUALIST_WHITE          PNG                     "assets\\Ritualist_White_32.png"
+
+RITUALIST_SIMPLE         PNG                     "assets\\Ritualist_Simple_32.png"
+
+RITUALIST_SIMPLE_WHITE   PNG                     "assets\\Ritualist_Simple_White_32.png"
+
+TROUBADOUR               PNG                     "assets\\Troubadour_32.png"
+
+TROUBADOUR_WHITE         PNG                     "assets\\Troubadour_White_32.png"
+
+TROUBADOUR_SIMPLE        PNG                     "assets\\Troubadour_Simple_32.png"
+
+TROUBADOUR_SIMPLE_WHITE  PNG                     "assets\\Troubadour_Simple_White_32.png"
 
 DEATH                   PNG                     "assets\\death_icon.png"
 
@@ -190,4 +460,6 @@ MENOMONIA_SANS_FONT     FONT                    "assets\\MenomoniaSans-Regular.t
 
 /////////////////////////////////////////////////////////////////////////////
 #endif    // not APSTUDIO_INVOKED
+
+
 

@@ -12,6 +12,8 @@
 #include <cmath>
 #include <string>
 #include <cstdio>
+#include <array>
+#include <algorithm>
 
 
 void initMaps() {
@@ -333,12 +335,70 @@ std::string formatDuration(uint64_t milliseconds) {
 Texture** getTextureInfo(const std::string& eliteSpec, int* outResourceId) {
     auto it = textureMap.find(eliteSpec);
     if (it != textureMap.end()) {
-        *outResourceId = it->second.resourceId;
+        const int iconStyle = std::clamp(Settings::scrapperIconStyle, 0, 3);
+        std::array<int, 4> styleIds = { it->second.resourceId, it->second.resourceId, it->second.resourceId, it->second.resourceId };
+        switch (it->second.resourceId) {
+        case BERSERKER: styleIds = std::array<int, 4>{ BERSERKER_SIMPLE_WHITE, BERSERKER_WHITE, BERSERKER, BERSERKER_SIMPLE }; break;
+        case BLADESWORN: styleIds = std::array<int, 4>{ BLADESWORN_SIMPLE_WHITE, BLADESWORN_WHITE, BLADESWORN, BLADESWORN_SIMPLE }; break;
+        case CATALYST: styleIds = std::array<int, 4>{ CATALYST_SIMPLE_WHITE, CATALYST_WHITE, CATALYST, CATALYST_SIMPLE }; break;
+        case CHRONOMANCER: styleIds = std::array<int, 4>{ CHRONOMANCER_SIMPLE_WHITE, CHRONOMANCER_WHITE, CHRONOMANCER, CHRONOMANCER_SIMPLE }; break;
+        case DAREDEVIL: styleIds = std::array<int, 4>{ DAREDEVIL_SIMPLE_WHITE, DAREDEVIL_WHITE, DAREDEVIL, DAREDEVIL_SIMPLE }; break;
+        case DEADEYE: styleIds = std::array<int, 4>{ DEADEYE_SIMPLE_WHITE, DEADEYE_WHITE, DEADEYE, DEADEYE_SIMPLE }; break;
+        case DRAGONHUNTER: styleIds = std::array<int, 4>{ DRAGONHUNTER_SIMPLE_WHITE, DRAGONHUNTER_WHITE, DRAGONHUNTER, DRAGONHUNTER_SIMPLE }; break;
+        case DRUID: styleIds = std::array<int, 4>{ DRUID_SIMPLE_WHITE, DRUID_WHITE, DRUID, DRUID_SIMPLE }; break;
+        case ELEMENTALIST: styleIds = std::array<int, 4>{ ELEMENTALIST_SIMPLE_WHITE, ELEMENTALIST_WHITE, ELEMENTALIST, ELEMENTALIST_SIMPLE }; break;
+        case ENGINEER: styleIds = std::array<int, 4>{ ENGINEER_SIMPLE_WHITE, ENGINEER_WHITE, ENGINEER, ENGINEER_SIMPLE }; break;
+        case FIREBRAND: styleIds = std::array<int, 4>{ FIREBRAND_SIMPLE_WHITE, FIREBRAND_WHITE, FIREBRAND, FIREBRAND_SIMPLE }; break;
+        case GUARDIAN: styleIds = std::array<int, 4>{ GUARDIAN_SIMPLE_WHITE, GUARDIAN_WHITE, GUARDIAN, GUARDIAN_SIMPLE }; break;
+        case HARBINGER: styleIds = std::array<int, 4>{ HARBINGER_SIMPLE_WHITE, HARBINGER_WHITE, HARBINGER, HARBINGER_SIMPLE }; break;
+        case HERALD: styleIds = std::array<int, 4>{ HERALD_SIMPLE_WHITE, HERALD_WHITE, HERALD, HERALD_SIMPLE }; break;
+        case HOLOSMITH: styleIds = std::array<int, 4>{ HOLOSMITH_SIMPLE_WHITE, HOLOSMITH_WHITE, HOLOSMITH, HOLOSMITH_SIMPLE }; break;
+        case MECHANIST: styleIds = std::array<int, 4>{ MECHANIST_SIMPLE_WHITE, MECHANIST_WHITE, MECHANIST, MECHANIST_SIMPLE }; break;
+        case MESMER: styleIds = std::array<int, 4>{ MESMER_SIMPLE_WHITE, MESMER_WHITE, MESMER, MESMER_SIMPLE }; break;
+        case MIRAGE: styleIds = std::array<int, 4>{ MIRAGE_SIMPLE_WHITE, MIRAGE_WHITE, MIRAGE, MIRAGE_SIMPLE }; break;
+        case NECROMANCER: styleIds = std::array<int, 4>{ NECROMANCER_SIMPLE_WHITE, NECROMANCER_WHITE, NECROMANCER, NECROMANCER_SIMPLE }; break;
+        case RANGER: styleIds = std::array<int, 4>{ RANGER_SIMPLE_WHITE, RANGER_WHITE, RANGER, RANGER_SIMPLE }; break;
+        case REAPER: styleIds = std::array<int, 4>{ REAPER_SIMPLE_WHITE, REAPER_WHITE, REAPER, REAPER_SIMPLE }; break;
+        case RENEGADE: styleIds = std::array<int, 4>{ RENEGADE_SIMPLE_WHITE, RENEGADE_WHITE, RENEGADE, RENEGADE_SIMPLE }; break;
+        case REVENANT: styleIds = std::array<int, 4>{ REVENANT_SIMPLE_WHITE, REVENANT_WHITE, REVENANT, REVENANT_SIMPLE }; break;
+        case SCRAPPER: styleIds = std::array<int, 4>{ SCRAPPER_SIMPLE_WHITE, SCRAPPER_WHITE, SCRAPPER, SCRAPPER_SIMPLE }; break;
+        case SCOURGE: styleIds = std::array<int, 4>{ SCOURGE_SIMPLE_WHITE, SCOURGE_WHITE, SCOURGE, SCOURGE_SIMPLE }; break;
+        case SOULBEAST: styleIds = std::array<int, 4>{ SOULBEAST_SIMPLE_WHITE, SOULBEAST_WHITE, SOULBEAST, SOULBEAST_SIMPLE }; break;
+        case SPECTER: styleIds = std::array<int, 4>{ SPECTER_SIMPLE_WHITE, SPECTER_WHITE, SPECTER, SPECTER_SIMPLE }; break;
+        case SPELLBREAKER: styleIds = std::array<int, 4>{ SPELLBREAKER_SIMPLE_WHITE, SPELLBREAKER_WHITE, SPELLBREAKER, SPELLBREAKER_SIMPLE }; break;
+        case TEMPEST: styleIds = std::array<int, 4>{ TEMPEST_SIMPLE_WHITE, TEMPEST_WHITE, TEMPEST, TEMPEST_SIMPLE }; break;
+        case THIEF: styleIds = std::array<int, 4>{ THIEF_SIMPLE_WHITE, THIEF_WHITE, THIEF, THIEF_SIMPLE }; break;
+        case UNTAMED: styleIds = std::array<int, 4>{ UNTAMED_SIMPLE_WHITE, UNTAMED_WHITE, UNTAMED, UNTAMED_SIMPLE }; break;
+        case VINDICATOR: styleIds = std::array<int, 4>{ VINDICATOR_SIMPLE_WHITE, VINDICATOR_WHITE, VINDICATOR, VINDICATOR_SIMPLE }; break;
+        case VIRTUOSO: styleIds = std::array<int, 4>{ VIRTUOSO_SIMPLE_WHITE, VIRTUOSO_WHITE, VIRTUOSO, VIRTUOSO_SIMPLE }; break;
+        case WARRIOR: styleIds = std::array<int, 4>{ WARRIOR_SIMPLE_WHITE, WARRIOR_WHITE, WARRIOR, WARRIOR_SIMPLE }; break;
+        case WEAVER: styleIds = std::array<int, 4>{ WEAVER_SIMPLE_WHITE, WEAVER_WHITE, WEAVER, WEAVER_SIMPLE }; break;
+        case WILLBENDER: styleIds = std::array<int, 4>{ WILLBENDER_SIMPLE_WHITE, WILLBENDER_WHITE, WILLBENDER, WILLBENDER_SIMPLE }; break;
+        case AMALGAM: styleIds = std::array<int, 4>{ AMALGAM_SIMPLE_WHITE, AMALGAM_WHITE, AMALGAM, AMALGAM_SIMPLE }; break;
+        case ANTIQUARY: styleIds = std::array<int, 4>{ ANTIQUARY_SIMPLE_WHITE, ANTIQUARY_WHITE, ANTIQUARY, ANTIQUARY_SIMPLE }; break;
+        case CONDUIT: styleIds = std::array<int, 4>{ CONDUIT_SIMPLE_WHITE, CONDUIT_WHITE, CONDUIT, CONDUIT_SIMPLE }; break;
+        case EVOKER: styleIds = std::array<int, 4>{ EVOKER_SIMPLE_WHITE, EVOKER_WHITE, EVOKER, EVOKER_SIMPLE }; break;
+        case GALESHOT: styleIds = std::array<int, 4>{ GALESHOT_SIMPLE_WHITE, GALESHOT_WHITE, GALESHOT, GALESHOT_SIMPLE }; break;
+        case LUMINARY: styleIds = std::array<int, 4>{ LUMINARY_SIMPLE_WHITE, LUMINARY_WHITE, LUMINARY, LUMINARY_SIMPLE }; break;
+        case PARAGON: styleIds = std::array<int, 4>{ PARAGON_SIMPLE_WHITE, PARAGON_WHITE, PARAGON, PARAGON_SIMPLE }; break;
+        case RITUALIST: styleIds = std::array<int, 4>{ RITUALIST_SIMPLE_WHITE, RITUALIST_WHITE, RITUALIST, RITUALIST_SIMPLE }; break;
+        case TROUBADOUR: styleIds = std::array<int, 4>{ TROUBADOUR_SIMPLE_WHITE, TROUBADOUR_WHITE, TROUBADOUR, TROUBADOUR_SIMPLE }; break;
+        default: break;
+        }
+        *outResourceId = styleIds[iconStyle];
         return it->second.texture;
     }
     else {
         *outResourceId = 0;
         return nullptr;
+    }
+}
+
+void InvalidateProfessionIconTextures() {
+    for (auto& [_, textureInfo] : textureMap) {
+        if (textureInfo.texture) {
+            *textureInfo.texture = nullptr;
+        }
     }
 }
 

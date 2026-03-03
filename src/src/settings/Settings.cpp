@@ -3,6 +3,7 @@
 #include "utils/Utils.h"
 #include <filesystem>
 #include <fstream>
+#include <algorithm>
 
 // Global Settings
 const char* CUSTOM_LOG_PATH = "CustomLogDirectoryPath";
@@ -14,6 +15,7 @@ const char* POLL_INTERVAL_MILLISECONDS = "PollIntervalMilliseconds";
 const char* USE_NEXUS_ESC_CLOSE = "UseNexusEscClose";
 const char* DEBUG_STRINGS_MODE = "debugStringsMode";
 const char* TEAM_IDS = "TeamIDs";
+const char* SCRAPPER_ICON_STYLE = "ScrapperIconStyle";
 
 // Default team IDs
 // I will keep all the old ones as I don't know the pattern of if they get reused etc
@@ -423,6 +425,7 @@ namespace Settings {
     bool hideAggWhenEmpty = false;
     bool useNexusEscClose = false;
     bool debugStringsMode = false;
+    int scrapperIconStyle = 0;
     std::unordered_map<int, std::string> teamIDs;
 
     void Settings::Load(std::filesystem::path aPath) {
@@ -464,6 +467,9 @@ namespace Settings {
                 }
                 if (!Settings.contains(DEBUG_STRINGS_MODE)) {
                     Settings[DEBUG_STRINGS_MODE] = false;
+                }
+                if (!Settings.contains(SCRAPPER_ICON_STYLE)) {
+                    Settings[SCRAPPER_ICON_STYLE] = 0;
                 }
 
                 // Initialize TeamIDs with defaults if key doesn't exist
@@ -535,6 +541,14 @@ namespace Settings {
                 catch (...) {
                     debugStringsMode = false;
                     Settings[DEBUG_STRINGS_MODE] = false;
+                }
+                try {
+                    scrapperIconStyle = std::clamp(Settings[SCRAPPER_ICON_STYLE].get<int>(), 0, 3);
+                    Settings[SCRAPPER_ICON_STYLE] = scrapperIconStyle;
+                }
+                catch (...) {
+                    scrapperIconStyle = 0;
+                    Settings[SCRAPPER_ICON_STYLE] = 0;
                 }
 
                 // Load team IDs - merge defaults with user's custom IDs
@@ -610,6 +624,7 @@ namespace Settings {
                 hideAggWhenEmpty = false;
                 useNexusEscClose = false;
                 debugStringsMode = false;
+                scrapperIconStyle = 0;
                 teamIDs = DEFAULT_TEAM_IDS;
 
                 // Set all default settings
@@ -621,6 +636,7 @@ namespace Settings {
                 Settings[POLL_INTERVAL_MILLISECONDS] = pollIntervalMilliseconds;
                 Settings[USE_NEXUS_ESC_CLOSE] = useNexusEscClose;
                 Settings[DEBUG_STRINGS_MODE] = debugStringsMode;
+                Settings[SCRAPPER_ICON_STYLE] = scrapperIconStyle;
 
                 // Use the same defaults defined at file scope
                 json defaultTeamIDsJson = json::object();
@@ -648,6 +664,7 @@ namespace Settings {
                 teamIDsJson[std::to_string(id)] = name;
             }
             Settings[TEAM_IDS] = teamIDsJson;
+            Settings[SCRAPPER_ICON_STYLE] = scrapperIconStyle;
 
             // Write to file
             std::ofstream file(aPath);
@@ -747,8 +764,8 @@ namespace Settings {
             widgetWindow->squadPlayersOnly = false;
             widgetWindow->useNexusEscClose = false;
 
-            widgetWindow->widgetWidth = 320.0f;
-            widgetWindow->widgetHeight = 20.0f;
+            widgetWindow->widgetWidth = 230.0f;
+            widgetWindow->widgetHeight = 40.0f;
             widgetWindow->textVerticalAlignOffset = 0.0f;
             widgetWindow->textHorizontalAlignOffset = 0.0f;
             widgetWindow->showWidgetIcon = true;
