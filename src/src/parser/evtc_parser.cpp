@@ -218,14 +218,12 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 			povAgentID = event.srcAgent;
 			break;
 		case StateChange::None:
-			// Map srcInstid
 			if (agentsByAddress.find(event.srcAgent) != agentsByAddress.end()) {
 				Agent& agent = agentsByAddress[event.srcAgent];
 				agent.id = event.srcInstid;
 				agentsByInstid[event.srcInstid] = &agent;
 				playersBySrcInstid[event.srcInstid] = &agent;
 			}
-			// Map dstInstid
 			if (agentsByAddress.find(event.dstAgent) != agentsByAddress.end()) {
 				Agent& agent = agentsByAddress[event.dstAgent];
 				agent.id = event.dstInstid;
@@ -444,28 +442,54 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 		}
 	}
 
-	// Collect statistics
-	for (const auto& [srcInstid, agent] : playersBySrcInstid) {
-		if (agent->team != "Unknown") {
-			auto& teamStats = result.teamStats[agent->team];
-			auto& specStats = teamStats.eliteSpecStats[agent->eliteSpec];
-
-			teamStats.totalPlayers++;
-			specStats.count++;
-			result.totalIdentifiedPlayers++;
-
-			if (teamStats.isPOVTeam && agent->subgroupNumber > 0) {
-				auto& squadStats = teamStats.squadStats;
-				auto& squadSpecStats = squadStats.eliteSpecStats[agent->eliteSpec];
-
-				squadStats.totalPlayers++;
-				squadSpecStats.count++;
-			}
-		}
-		else {
+	if (Settings::debugStringsMode) {
+		APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
+			("playersBySrcInstid total entries: " + std::to_string(playersBySrcInstid.size())).c_str());
+		for (const auto& [instid, agent] : playersBySrcInstid) {
 			APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
-				("Agent with unknown team - InstID: " + std::to_string(srcInstid) +
-					", Name: " + agent->name).c_str());
+				("  instid=" + std::to_string(instid) +
+				 " addr=" + std::to_string(agent->address) +
+				 " team=" + agent->team +
+				 " spec=" + agent->eliteSpec +
+				 " acct=" + agent->accountName).c_str());
+		}
+	}
+
+	std::unordered_map<std::string, std::unordered_set<std::string>> countedAccounts;
+	for (const auto& [srcInstid, agent] : playersBySrcInstid) {
+		if (agent->team == "Unknown") continue;
+
+		if (!agent->accountName.empty() && agent->accountName[0] == ':') {
+			if (!countedAccounts[agent->team].insert(agent->accountName).second)
+				continue;
+		}
+
+		auto& teamStats = result.teamStats[agent->team];
+		auto& specStats = teamStats.eliteSpecStats[agent->eliteSpec];
+
+		teamStats.totalPlayers++;
+		specStats.count++;
+		result.totalIdentifiedPlayers++;
+
+		if (Settings::debugStringsMode) {
+			APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
+				("COUNT: instid=" + std::to_string(srcInstid) +
+				 " team=" + agent->team +
+				 " spec=" + agent->eliteSpec +
+				 " total=" + std::to_string(teamStats.totalPlayers)).c_str());
+		}
+
+		if (teamStats.isPOVTeam && agent->subgroupNumber > 0) {
+			auto& squadStats = teamStats.squadStats;
+			squadStats.totalPlayers++;
+			squadStats.eliteSpecStats[agent->eliteSpec].count++;
+		}
+	}
+
+	if (Settings::debugStringsMode) {
+		for (const auto& [teamName, stats] : result.teamStats) {
+			APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
+				("FINAL: team=" + teamName + " totalPlayers=" + std::to_string(stats.totalPlayers)).c_str());
 		}
 	}
 }
