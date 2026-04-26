@@ -335,6 +335,23 @@ void AddonOptions()
                 Settings::Save(SettingsPath);
             }
 
+            const char* specIconOptions[] = {
+                "Simple White",
+                "White",
+                "Colored",
+                "Simple Colored"
+            };
+            int selectedSpecIconStyle = Settings::scrapperIconStyle;
+            if (ImGui::Combo("Spec Icon Style", &selectedSpecIconStyle, specIconOptions, IM_ARRAYSIZE(specIconOptions))) {
+                Settings::scrapperIconStyle = std::clamp(selectedSpecIconStyle, 0, 3);
+                Settings::Settings[SCRAPPER_ICON_STYLE] = Settings::scrapperIconStyle;
+                InvalidateProfessionIconTextures();
+                Settings::Save(SettingsPath);
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Select which profession/spec icon variant to use.");
+            }
+
 
             bool enabled = !isRestartInProgress.load();
             if (!enabled) {

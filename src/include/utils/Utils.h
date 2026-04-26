@@ -7,7 +7,7 @@
 #include "imgui/imgui.h"
 
 
-class Texture;
+struct Texture;
 class BaseWindowSettings;
 struct SpecStats;
 
@@ -19,6 +19,7 @@ void waitForFile(const std::string& filePath);
 std::filesystem::path getArcPath();
 
 Texture** getTextureInfo(const std::string& eliteSpec, int* outResourceId);
+void InvalidateProfessionIconTextures();
 std::vector<char> extractZipFile(const std::string& filePath);
 std::string formatDamage(double damage);
 std::string generateLogDisplayName(const std::string& filename, uint64_t combatStartMs, uint64_t combatEndMs);
