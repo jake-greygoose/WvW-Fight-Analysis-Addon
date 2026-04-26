@@ -106,9 +106,9 @@ DRAGONHUNTER_SIMPLE      PNG                     "assets\\Dragonhunter_Simple_32
 
 DRAGONHUNTER_SIMPLE_WHITE PNG                     "assets\\Dragonhunter_Simple_White_32.png"
 
-DRUID                    PNG                     "assets\\Druid_1000_Square_32.png"
+DRUID                    PNG                     "assets\\Druid_32.png"
 
-DRUID_WHITE              PNG                     "assets\\Druid_1000_Square_32.png"
+DRUID_WHITE              PNG                     "assets\\Druid_white_32.png"
 
 DRUID_SIMPLE             PNG                     "assets\\Druid_Simple_32.png"
 
