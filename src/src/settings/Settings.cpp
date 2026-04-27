@@ -753,14 +753,12 @@ namespace Settings {
             widgetWindow->size = ImVec2(320, 20);
             widgetWindow->isEnabled = true;
             widgetWindow->showScrollBar = false;
-            widgetWindow->showTitle = false;
             widgetWindow->showBackground = true;
             widgetWindow->allowFocus = true;
             widgetWindow->disableMoving = false;
             widgetWindow->disableClicking = false;
             widgetWindow->hideInCombat = false;
             widgetWindow->hideOutOfCombat = false;
-            widgetWindow->vsLoggedPlayersOnly = true;
             widgetWindow->squadPlayersOnly = false;
             widgetWindow->useNexusEscClose = false;
 
@@ -768,7 +766,6 @@ namespace Settings {
             widgetWindow->textHorizontalAlignOffset = 0.0f;
             widgetWindow->showWidgetIcon = true;
             widgetWindow->widgetStats = "players";
-            widgetWindow->widgetBorderThickness = 1.0f;
             widgetWindow->widgetRoundness = 0.0f;
             
             widgetWindow->colors.redBackground = ImVec4(1.0f, 0.266f, 0.266f, 1.0f);

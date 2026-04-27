@@ -47,14 +47,14 @@ public:
     bool hideInCombat = false;
     bool hideOutOfCombat = false;
     bool showScrollBar = false;
-    bool showTitle = true;
+    bool showTitle = false;
     bool useWindowStyleForTitle = false;
     bool showBackground = true;
     bool allowFocus = true;
     bool disableMoving = false;
     bool disableClicking = false;
     bool squadPlayersOnly = false;
-    bool vsLoggedPlayersOnly = false;
+    bool vsLoggedPlayersOnly = true;
     bool useNexusEscClose = false;
     ImVec2 position;
     ImVec2 size;
@@ -127,7 +127,7 @@ struct WidgetWindowSettings : public BaseWindowSettings {
     float textHorizontalAlignOffset = 0.0f;
     bool showWidgetIcon = true;
     std::string widgetStats = "players";
-    float widgetBorderThickness = 0.0f;
+    float widgetBorderThickness = 1.0f;
     float widgetRoundness = 0.0f;
     bool usePieChartStyle = false;  // Toggle between horizontal bar and pie chart
 
