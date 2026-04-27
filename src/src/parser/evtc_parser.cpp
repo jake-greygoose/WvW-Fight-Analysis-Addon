@@ -1195,6 +1195,9 @@ void processNewEVTCFile(const std::string& filePath)
 
 	// Trigger "parsing complete" animation
 	parseCompleteTime.store(ImGui::GetTime());
+
+	LogParsedEventArgs args{log.filename.c_str(), &log.data};
+	APIDefs->Events.Raise(EV_LOG_PARSED, &args);
 }
 
 
