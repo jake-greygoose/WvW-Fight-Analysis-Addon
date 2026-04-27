@@ -764,8 +764,6 @@ namespace Settings {
             widgetWindow->squadPlayersOnly = false;
             widgetWindow->useNexusEscClose = false;
 
-            widgetWindow->widgetWidth = 230.0f;
-            widgetWindow->widgetHeight = 40.0f;
             widgetWindow->textVerticalAlignOffset = 0.0f;
             widgetWindow->textHorizontalAlignOffset = 0.0f;
             widgetWindow->showWidgetIcon = true;

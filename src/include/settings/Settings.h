@@ -120,8 +120,8 @@ struct MainWindowSettings : public BaseWindowSettings {
 
 struct WidgetWindowSettings : public BaseWindowSettings {
     bool largerFont = false;
-    float widgetWidth = 320.0f;
-    float widgetHeight = 20.0f;
+    float widgetWidth = 230.0f;
+    float widgetHeight = 40.0f;
     float pieChartSize = 250.0f;  // Size for pie chart (square)
     float textVerticalAlignOffset = 0.0f;
     float textHorizontalAlignOffset = 0.0f;
