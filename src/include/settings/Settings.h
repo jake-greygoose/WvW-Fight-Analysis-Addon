@@ -47,14 +47,14 @@ public:
     bool hideInCombat = false;
     bool hideOutOfCombat = false;
     bool showScrollBar = false;
-    bool showTitle = true;
+    bool showTitle = false;
     bool useWindowStyleForTitle = false;
     bool showBackground = true;
     bool allowFocus = true;
     bool disableMoving = false;
     bool disableClicking = false;
     bool squadPlayersOnly = false;
-    bool vsLoggedPlayersOnly = false;
+    bool vsLoggedPlayersOnly = true;
     bool useNexusEscClose = false;
     ImVec2 position;
     ImVec2 size;
@@ -120,14 +120,14 @@ struct MainWindowSettings : public BaseWindowSettings {
 
 struct WidgetWindowSettings : public BaseWindowSettings {
     bool largerFont = false;
-    float widgetWidth = 320.0f;
-    float widgetHeight = 20.0f;
+    float widgetWidth = 230.0f;
+    float widgetHeight = 40.0f;
     float pieChartSize = 250.0f;  // Size for pie chart (square)
     float textVerticalAlignOffset = 0.0f;
     float textHorizontalAlignOffset = 0.0f;
     bool showWidgetIcon = true;
     std::string widgetStats = "players";
-    float widgetBorderThickness = 0.0f;
+    float widgetBorderThickness = 1.0f;
     float widgetRoundness = 0.0f;
     bool usePieChartStyle = false;  // Toggle between horizontal bar and pie chart
 
@@ -199,6 +199,10 @@ extern const char* USE_NEXUS_ESC_CLOSE;
 extern const char* DEBUG_STRINGS_MODE;
 extern const char* TEAM_IDS;
 extern const char* SCRAPPER_ICON_STYLE;
+extern const char* MIN_TOTAL_PLAYERS;
+extern const char* MIN_TOTAL_DEATHS;
+extern const char* MIN_TOTAL_DOWNS;
+extern const char* MIN_COMBAT_DURATION;
 
 namespace Settings {
     extern std::mutex Mutex;
@@ -208,6 +212,10 @@ namespace Settings {
     extern char LogDirectoryPathC[256];
     extern size_t logHistorySize;
     extern int teamPlayerThreshold;
+    extern int minTotalPlayers;
+    extern int minTotalDeaths;
+    extern int minTotalDowns;
+    extern int minCombatDuration;
     extern bool showNewParseAlert;
     extern bool forceLinuxCompatibilityMode;
     extern size_t pollIntervalMilliseconds;

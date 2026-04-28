@@ -110,6 +110,7 @@ extern int currentLogIndex;
 extern std::atomic<float> newLogDetectedTime;     // Time when new log was detected (0 = no animation)
 extern std::atomic<float> parseCompleteTime;      // Time when parsing completed (0 = no animation)
 
+static const char* const EV_LOG_PARSED = "EV_LOG_PARSED";
 
 struct TextureInfo {
     int resourceId;
@@ -224,6 +225,11 @@ struct ParsedData {
         }
         return 0.0;
     }
+};
+
+struct LogParsedEventArgs {
+	const char* filename;
+	const ParsedData* data;
 };
 
 struct ParsedLog {
