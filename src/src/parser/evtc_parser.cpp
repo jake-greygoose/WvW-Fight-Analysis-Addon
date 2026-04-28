@@ -19,6 +19,7 @@
 std::unordered_set<std::wstring> processedFiles;
 std::filesystem::file_time_type maxProcessedTime = std::filesystem::file_time_type::min();
 
+bool shouldSkipLog(const ParsedLog& log);
 
 
 std::unordered_map<uint64_t, AgentState> preProcessAgentStates(const std::vector<CombatEvent>& events) {
@@ -730,28 +731,8 @@ void parseInitialLogs(std::unordered_set<std::wstring>& processedFiles, size_t n
 				log.filename = filePath.filename().string();
 				log.data = parseEVTCFile(filePath.string());
 
-				// fightId 1 = WvW
-				if (log.data.fightId != 1)
+				if (shouldSkipLog(log))
 				{
-					APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
-						("Skipping non-WvW log during initial parsing: " + log.filename).c_str());
-					continue;
-				}
-
-				if (log.data.totalIdentifiedPlayers == 0)
-				{
-					if (Settings::debugStringsMode) {
-						size_t teamCount = log.data.teamStats.size();
-						std::string teamInfo = "Teams found: " + std::to_string(teamCount);
-						for (const auto& [teamName, stats] : log.data.teamStats) {
-							teamInfo += " [" + teamName + ": " + std::to_string(stats.totalPlayers) + " players]";
-						}
-						APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
-							("Skipping log with no identified players during initial parsing: " + log.filename + " - " + teamInfo).c_str());
-					} else {
-						APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
-							("Skipping log with no identified players during initial parsing: " + log.filename).c_str());
-					}
 					continue;
 				}
 
@@ -1074,6 +1055,76 @@ void monitorDirectory(size_t numLogsToParse, size_t pollIntervalMilliseconds)
 	}
 }
 
+bool shouldSkipLog(const ParsedLog& log)
+{
+	if (log.data.fightId != 1)
+	{
+		APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME, ("Skipping non-WvW log: " + log.filename).c_str());
+		return true;
+	}
+
+	if (log.data.totalIdentifiedPlayers == 0)
+	{
+		if (Settings::debugStringsMode) {
+			size_t teamCount = log.data.teamStats.size();
+			std::string teamInfo = "Teams found: " + std::to_string(teamCount);
+			for (const auto& [teamName, stats] : log.data.teamStats) {
+				teamInfo += " [" + teamName + ": " + std::to_string(stats.totalPlayers) + " players]";
+			}
+			APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
+				("Skipping log with no identified players: " + log.filename + " - " + teamInfo).c_str());
+		} else {
+			APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME, ("Skipping log with no identified players: " + log.filename).c_str());
+		}
+		return true;
+	}
+
+	if (Settings::minTotalPlayers > 0 && log.data.totalIdentifiedPlayers < (size_t)Settings::minTotalPlayers)
+	{
+		APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
+			("Skipping log below min total players (" + std::to_string(Settings::minTotalPlayers) + "): " + log.filename + " (" + std::to_string(log.data.totalIdentifiedPlayers) + " players)").c_str());
+		return true;
+	}
+
+	if (Settings::minTotalDeaths > 0 || Settings::minTotalDowns > 0)
+	{
+		uint32_t totalDeaths = 0;
+		uint32_t totalDowns = 0;
+		for (const auto& [teamName, stats] : log.data.teamStats)
+		{
+			totalDeaths += stats.totalDeaths;
+			totalDowns += stats.totalDowned;
+		}
+
+		if (Settings::minTotalDeaths > 0 && totalDeaths < (uint32_t)Settings::minTotalDeaths)
+		{
+			APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
+				("Skipping log below min total deaths (" + std::to_string(Settings::minTotalDeaths) + "): " + log.filename + " (" + std::to_string(totalDeaths) + " deaths)").c_str());
+			return true;
+		}
+
+		if (Settings::minTotalDowns > 0 && totalDowns < (uint32_t)Settings::minTotalDowns)
+		{
+			APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
+				("Skipping log below min total downs (" + std::to_string(Settings::minTotalDowns) + "): " + log.filename + " (" + std::to_string(totalDowns) + " downs)").c_str());
+			return true;
+		}
+	}
+
+	if (Settings::minCombatDuration > 0)
+	{
+		double durationSec = log.data.getCombatDurationSeconds();
+		if (durationSec < Settings::minCombatDuration)
+		{
+			APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
+				("Skipping log below min combat duration (" + std::to_string(Settings::minCombatDuration) + "s): " + log.filename + " (" + std::to_string(durationSec) + "s)").c_str());
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void processNewEVTCFile(const std::string& filePath)
 {
 	std::filesystem::path path(filePath);
@@ -1086,26 +1137,8 @@ void processNewEVTCFile(const std::string& filePath)
 	log.filename = filename;
 	log.data = parseEVTCFile(filePath);
 
-	// Validate WvW log
-	if (log.data.fightId != 1)
+	if (shouldSkipLog(log))
 	{
-		APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME, ("Skipping non-WvW log: " + filename).c_str());
-		return;
-	}
-
-	if (log.data.totalIdentifiedPlayers == 0)
-	{
-		if (Settings::debugStringsMode) {
-			size_t teamCount = log.data.teamStats.size();
-			std::string teamInfo = "Teams found: " + std::to_string(teamCount);
-			for (const auto& [teamName, stats] : log.data.teamStats) {
-				teamInfo += " [" + teamName + ": " + std::to_string(stats.totalPlayers) + " players]";
-			}
-			APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
-				("Skipping log with no identified players: " + filename + " - " + teamInfo).c_str());
-		} else {
-			APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME, ("Skipping log with no identified players: " + filename).c_str());
-		}
 		return;
 	}
 

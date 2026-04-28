@@ -304,6 +304,42 @@ void AddonOptions()
                 ImGui::SetTooltip("Set a minimum number of team players required to render team.");
             }
 
+            if (ImGui::InputInt("Min Total Players", &Settings::minTotalPlayers)) {
+                Settings::minTotalPlayers = std::clamp(Settings::minTotalPlayers, 0, 50);
+                Settings::Settings[MIN_TOTAL_PLAYERS] = Settings::minTotalPlayers;
+                Settings::Save(SettingsPath);
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Skip parsing logs with fewer than this many total identified players.");
+            }
+
+            if (ImGui::InputInt("Min Total Deaths", &Settings::minTotalDeaths)) {
+                Settings::minTotalDeaths = std::clamp(Settings::minTotalDeaths, 0, 50);
+                Settings::Settings[MIN_TOTAL_DEATHS] = Settings::minTotalDeaths;
+                Settings::Save(SettingsPath);
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Skip parsing logs with fewer than this many total deaths.");
+            }
+
+            if (ImGui::InputInt("Min Total Downs", &Settings::minTotalDowns)) {
+                Settings::minTotalDowns = std::clamp(Settings::minTotalDowns, 0, 50);
+                Settings::Settings[MIN_TOTAL_DOWNS] = Settings::minTotalDowns;
+                Settings::Save(SettingsPath);
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Skip parsing logs with fewer than this many total downs.");
+            }
+
+            if (ImGui::InputInt("Min Combat Duration (s)", &Settings::minCombatDuration)) {
+                Settings::minCombatDuration = std::clamp(Settings::minCombatDuration, 0, 120);
+                Settings::Settings[MIN_COMBAT_DURATION] = Settings::minCombatDuration;
+                Settings::Save(SettingsPath);
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Skip parsing logs with combat duration shorter than this (seconds).");
+            }
+
             if (ImGui::Checkbox("Show Alert On Log Parse", &Settings::showNewParseAlert)) {
                 Settings::Settings[SHOW_NEW_PARSE_ALERT] = Settings::showNewParseAlert;
                 Settings::Save(SettingsPath);

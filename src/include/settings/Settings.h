@@ -199,6 +199,10 @@ extern const char* USE_NEXUS_ESC_CLOSE;
 extern const char* DEBUG_STRINGS_MODE;
 extern const char* TEAM_IDS;
 extern const char* SCRAPPER_ICON_STYLE;
+extern const char* MIN_TOTAL_PLAYERS;
+extern const char* MIN_TOTAL_DEATHS;
+extern const char* MIN_TOTAL_DOWNS;
+extern const char* MIN_COMBAT_DURATION;
 
 namespace Settings {
     extern std::mutex Mutex;
@@ -208,6 +212,10 @@ namespace Settings {
     extern char LogDirectoryPathC[256];
     extern size_t logHistorySize;
     extern int teamPlayerThreshold;
+    extern int minTotalPlayers;
+    extern int minTotalDeaths;
+    extern int minTotalDowns;
+    extern int minCombatDuration;
     extern bool showNewParseAlert;
     extern bool forceLinuxCompatibilityMode;
     extern size_t pollIntervalMilliseconds;

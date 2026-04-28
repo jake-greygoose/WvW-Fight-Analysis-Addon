@@ -16,6 +16,10 @@ const char* USE_NEXUS_ESC_CLOSE = "UseNexusEscClose";
 const char* DEBUG_STRINGS_MODE = "debugStringsMode";
 const char* TEAM_IDS = "TeamIDs";
 const char* SCRAPPER_ICON_STYLE = "ScrapperIconStyle";
+const char* MIN_TOTAL_PLAYERS = "MinTotalPlayers";
+const char* MIN_TOTAL_DEATHS = "MinTotalDeaths";
+const char* MIN_TOTAL_DOWNS = "MinTotalDowns";
+const char* MIN_COMBAT_DURATION = "MinCombatDuration";
 
 // Default team IDs
 // I will keep all the old ones as I don't know the pattern of if they get reused etc
@@ -424,6 +428,10 @@ namespace Settings {
     char LogDirectoryPathC[256] = "";
     size_t logHistorySize = 10;
     int teamPlayerThreshold = 1;
+    int minTotalPlayers = 0;
+    int minTotalDeaths = 0;
+    int minTotalDowns = 0;
+    int minCombatDuration = 0;
     bool showNewParseAlert = true;
     bool forceLinuxCompatibilityMode = false;
     size_t pollIntervalMilliseconds = 3000;
@@ -506,6 +514,38 @@ namespace Settings {
                 catch (...) {
                     teamPlayerThreshold = 1;
                     Settings[TEAM_PLAYER_THRESHOLD] = 1;
+                }
+
+                try {
+                    minTotalPlayers = Settings[MIN_TOTAL_PLAYERS].get<int>();
+                }
+                catch (...) {
+                    minTotalPlayers = 0;
+                    Settings[MIN_TOTAL_PLAYERS] = 0;
+                }
+
+                try {
+                    minTotalDeaths = Settings[MIN_TOTAL_DEATHS].get<int>();
+                }
+                catch (...) {
+                    minTotalDeaths = 0;
+                    Settings[MIN_TOTAL_DEATHS] = 0;
+                }
+
+                try {
+                    minTotalDowns = Settings[MIN_TOTAL_DOWNS].get<int>();
+                }
+                catch (...) {
+                    minTotalDowns = 0;
+                    Settings[MIN_TOTAL_DOWNS] = 0;
+                }
+
+                try {
+                    minCombatDuration = Settings[MIN_COMBAT_DURATION].get<int>();
+                }
+                catch (...) {
+                    minCombatDuration = 0;
+                    Settings[MIN_COMBAT_DURATION] = 0;
                 }
 
                 try {
@@ -623,6 +663,10 @@ namespace Settings {
                 strcpy_s(LogDirectoryPathC, sizeof(LogDirectoryPathC), "");
                 logHistorySize = 10;
                 teamPlayerThreshold = 1;
+                minTotalPlayers = 0;
+                minTotalDeaths = 0;
+                minTotalDowns = 0;
+                minCombatDuration = 0;
                 showNewParseAlert = true;
                 forceLinuxCompatibilityMode = false;
                 pollIntervalMilliseconds = 3000;
@@ -636,6 +680,10 @@ namespace Settings {
                 Settings[CUSTOM_LOG_PATH] = LogDirectoryPath;
                 Settings[LOG_HISTORY_SIZE] = logHistorySize;
                 Settings[TEAM_PLAYER_THRESHOLD] = teamPlayerThreshold;
+                Settings[MIN_TOTAL_PLAYERS] = minTotalPlayers;
+                Settings[MIN_TOTAL_DEATHS] = minTotalDeaths;
+                Settings[MIN_TOTAL_DOWNS] = minTotalDowns;
+                Settings[MIN_COMBAT_DURATION] = minCombatDuration;
                 Settings[SHOW_NEW_PARSE_ALERT] = showNewParseAlert;
                 Settings[FORCE_LINUX_COMPAT] = forceLinuxCompatibilityMode;
                 Settings[POLL_INTERVAL_MILLISECONDS] = pollIntervalMilliseconds;
