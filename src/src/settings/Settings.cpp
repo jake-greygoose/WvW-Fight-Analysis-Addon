@@ -304,7 +304,12 @@ WidgetWindowSettings::WidgetWindowSettings(const json& j) : BaseWindowSettings(j
 }
 
 AggregateWindowSettings::AggregateWindowSettings(const json& j) : BaseWindowSettings(j, "agg_") {
+    isEnabled = false;
+    size = ImVec2(450, 350);
     if (!j.is_null()) {
+        isEnabled = j.value("isEnabled", isEnabled);
+        size.x = j.value("sizeX", size.x);
+        size.y = j.value("sizeY", size.y);
         showAvgCombatTime = j.value("showAvgCombatTime", showAvgCombatTime);
         showTotalCombatTime = j.value("showTotalCombatTime", showTotalCombatTime);
         showTeamTotalPlayers = j.value("showTeamTotalPlayers", showTeamTotalPlayers);
