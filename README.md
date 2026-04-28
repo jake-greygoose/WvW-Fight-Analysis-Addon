@@ -1,6 +1,11 @@
 # WvW Fight Analysis Addon
 Inspired by Know Thy Enemy, an addon to parse team player numbers from evtc logs in WvW.
 
+## What's New
+#### April 2026
+- Fixed a long standing parsing bug, player numbers are comparable to EI.
+- Added log filtering to skip logs based on minimum participants / duration / deaths / downs.
+
 ![Example](./AddonExampleImage.png)
 
 
