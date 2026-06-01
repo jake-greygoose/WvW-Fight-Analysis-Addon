@@ -160,10 +160,28 @@ void parseAgents(const std::vector<char>& bytes, size_t& offset, uint32_t agentC
 		offset += agentBlockSize;
 	}
 }
+static constexpr uint8_t SC_ID_TO_GUID = 46;
 
+static std::string guidToHex(uint64_t first8, uint64_t last8) {
+	static const char hex[] = "0123456789ABCDEF";
+	std::string s;
+	s.reserve(32);
+	for (int i = 0; i < 8; ++i) {
+		uint8_t b = (first8 >> (i * 8)) & 0xFF;
+		s += hex[b >> 4]; s += hex[b & 0xF];
+	}
+	for (int i = 0; i < 8; ++i) {
+		uint8_t b = (last8 >> (i * 8)) & 0xFF;
+		s += hex[b >> 4]; s += hex[b & 0xF];
+	}
+	return s;
+}
 
-
-
+static const std::unordered_map<std::string, std::string> WVW_TEAM_COLOR_GUIDS = {
+	{"BC8AEAEF73DC8C43B041CEDFEA4D5020", "Green"},
+	{"5D22513B9498EB48944E94EC7A8DD657", "Red"},
+	{"CF6F7C254FCB184CBCCE4738EADD8388", "Blue"},
+};
 
 void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eventCount,
 	std::unordered_map<uint64_t, Agent>& agentsByAddress,
@@ -180,6 +198,8 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 
 	const size_t eventSize = sizeof(CombatEvent);
 	std::unordered_map<uint16_t, Agent*> agentsByInstid;
+	std::unordered_map<uint64_t, uint16_t> ptr_to_instid;
+	std::unordered_set<uint64_t> active_ptrs;
 
 	std::vector<CombatEvent> allEvents;
 	allEvents.reserve(eventCount);
@@ -197,10 +217,28 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 
 	auto agentStates = preProcessAgentStates(allEvents);
 
+	// Pre-scan IDToGUID events to auto-detect WvW team colors from stable GUIDs.
+	std::unordered_map<uint32_t, std::string> teamIdToColor;
+	for (const auto& ev : allEvents) {
+		if (ev.isStateChange != SC_ID_TO_GUID || ev.skillId == 0) continue;
+		auto it = WVW_TEAM_COLOR_GUIDS.find(guidToHex(ev.srcAgent, ev.dstAgent));
+		if (it != WVW_TEAM_COLOR_GUIDS.end())
+			teamIdToColor[ev.skillId] = it->second;
+	}
+
 	// Process all events
 	for (const auto& event : allEvents) {
 		earliestTime = std::min(earliestTime, event.time);
 		latestTime = std::max(latestTime, event.time);
+
+		if (event.srcAgent != 0 && event.srcInstid != 0 &&
+			agentsByAddress.count(event.srcAgent)) {
+			ptr_to_instid.emplace(event.srcAgent, event.srcInstid);
+		}
+		if (event.dstAgent != 0 && event.dstInstid != 0 &&
+			agentsByAddress.count(event.dstAgent)) {
+			ptr_to_instid.emplace(event.dstAgent, event.dstInstid);
+		}
 
 		switch (static_cast<StateChange>(event.isStateChange)) {
 		case StateChange::LogStart:
@@ -220,6 +258,7 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 			break;
 		case StateChange::None:
 			if (agentsByAddress.find(event.srcAgent) != agentsByAddress.end()) {
+				active_ptrs.insert(event.srcAgent);
 				Agent& agent = agentsByAddress[event.srcAgent];
 				agent.id = event.srcInstid;
 				agentsByInstid[event.srcInstid] = &agent;
@@ -235,25 +274,33 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 			uint32_t teamID = static_cast<uint32_t>(event.value);
 			if (teamID != 0 && agentsByAddress.find(event.srcAgent) != agentsByAddress.end()) {
 				Agent& agent = agentsByAddress[event.srcAgent];
-				auto it = Settings::teamIDs.find(teamID);
+
+				std::string teamName;
+				auto gitc = teamIdToColor.find(teamID);
+				if (gitc != teamIdToColor.end()) {
+					teamName = gitc->second;
+				} else {
+					auto it = Settings::teamIDs.find(teamID);
+					if (it != Settings::teamIDs.end())
+						teamName = it->second;
+				}
 
 				if (Settings::debugStringsMode) {
 					std::string agentInfo = agent.name.empty() ? agent.accountName : agent.name;
 					if (agentInfo.empty()) agentInfo = "Unknown Agent";
-
-					if (it != Settings::teamIDs.end()) {
+					if (!teamName.empty()) {
 						APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
 							("TeamChange: Agent '" + agentInfo + "' assigned to team ID " +
-							std::to_string(teamID) + " (" + it->second + ")").c_str());
+							std::to_string(teamID) + " (" + teamName + ")").c_str());
 					} else {
 						APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
 							("TeamChange: Agent '" + agentInfo + "' has UNKNOWN team ID " +
-							std::to_string(teamID) + " (not in settings)").c_str());
+							std::to_string(teamID) + " (not in GUID map or settings)").c_str());
 					}
 				}
 
-				if (it != Settings::teamIDs.end()) {
-					agent.team = it->second;
+				if (!teamName.empty()) {
+					agent.team = teamName;
 				}
 			}
 			break;
@@ -457,16 +504,28 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 	}
 
 	std::unordered_map<std::string, std::unordered_set<std::string>> countedAccounts;
-	for (const auto& [srcInstid, agent] : playersBySrcInstid) {
-		if (agent->team == "Unknown") continue;
+	std::unordered_set<uint16_t> countedNonSquadInstids;
 
-		if (!agent->accountName.empty() && agent->accountName[0] == ':') {
-			if (!countedAccounts[agent->team].insert(agent->accountName).second)
+	for (const auto& [addr, agent] : agentsByAddress) {
+		if (agent.team.empty() || agent.team == "Unknown") continue;
+
+		bool isSquad = agent.subgroupNumber > 0;
+
+		if (isSquad) {
+			if (!active_ptrs.count(addr)) continue;
+			if (!agent.accountName.empty() && agent.accountName[0] == ':') {
+				if (!countedAccounts[agent.team].insert(agent.accountName).second)
+					continue;
+			}
+		} else {
+			auto iit = ptr_to_instid.find(addr);
+			if (iit == ptr_to_instid.end()) continue;
+			if (!countedNonSquadInstids.insert(iit->second).second)
 				continue;
 		}
 
-		auto& teamStats = result.teamStats[agent->team];
-		auto& specStats = teamStats.eliteSpecStats[agent->eliteSpec];
+		auto& teamStats = result.teamStats[agent.team];
+		auto& specStats = teamStats.eliteSpecStats[agent.eliteSpec];
 
 		teamStats.totalPlayers++;
 		specStats.count++;
@@ -474,16 +533,17 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 
 		if (Settings::debugStringsMode) {
 			APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
-				("COUNT: instid=" + std::to_string(srcInstid) +
-				 " team=" + agent->team +
-				 " spec=" + agent->eliteSpec +
+				("COUNT: addr=" + std::to_string(addr) +
+				 " squad=" + std::to_string(isSquad) +
+				 " team=" + agent.team +
+				 " spec=" + agent.eliteSpec +
 				 " total=" + std::to_string(teamStats.totalPlayers)).c_str());
 		}
 
-		if (teamStats.isPOVTeam && agent->subgroupNumber > 0) {
+		if (teamStats.isPOVTeam && isSquad) {
 			auto& squadStats = teamStats.squadStats;
 			squadStats.totalPlayers++;
-			squadStats.eliteSpecStats[agent->eliteSpec].count++;
+			squadStats.eliteSpecStats[agent.eliteSpec].count++;
 		}
 	}
 
