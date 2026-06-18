@@ -3,7 +3,7 @@
 #include "utils/Utils.h"
 #include "resource.h"
 #include "settings/Settings.h"
-#include "evtc_parser.h"
+#include "parser/evtc_parser.h"
 #include <thread>
 #include <chrono>
 #include <shlobj.h>
@@ -402,7 +402,7 @@ void InvalidateProfessionIconTextures() {
     }
 }
 
-std::string formatDamage(double damage) {
+std::string formatDamage(uint64_t damage) {
     if (damage >= 1'000'000.0) {
         if (std::fmod(damage, 1'000'000.0) == 0.0) {
             return std::to_string(static_cast<int>(damage / 1'000'000.0)) + "M";
@@ -547,4 +547,90 @@ std::function<bool(
 
             return a.first < b.first;
         };
+}
+
+void ProcessKeybinds(const char* aIdentifier, bool aIsRelease) {
+    std::string str = aIdentifier;
+    if (aIsRelease) return;
+
+    if (str == "KB_WINDOW_TOGGLEVISIBLE") {
+        bool anyVisible = false;
+        for (const auto& mainWindow : Settings::windowManager.mainWindows) {
+            if (mainWindow->isEnabled) {
+                anyVisible = true;
+                break;
+            }
+        }
+        for (auto& mainWindow : Settings::windowManager.mainWindows) {
+            mainWindow->isEnabled = !anyVisible;
+        }
+        Settings::Save(SettingsPath);
+    }
+    else if (str == "KB_WIDGET_TOGGLEVISIBLE") {
+        bool anyVisible = false;
+        for (const auto& widgetWindow : Settings::windowManager.widgetWindows) {
+            if (widgetWindow->isEnabled) {
+                anyVisible = true;
+                break;
+            }
+        }
+        for (auto& widgetWindow : Settings::windowManager.widgetWindows) {
+            widgetWindow->isEnabled = !anyVisible;
+        }
+        Settings::Save(SettingsPath);
+    }
+    else if (str == "LOG_INDEX_DOWN") {
+        if (!parsedLogs.empty()) {
+            if (currentLogIndex == 0) {
+                currentLogIndex = static_cast<int>(parsedLogs.size()) - 1;
+            }
+            else {
+                currentLogIndex--;
+            }
+        }
+        else {
+            APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
+                ("Log Index: " + std::to_string(currentLogIndex)).c_str());
+        }
+    }
+    else if (str == "LOG_INDEX_UP") {
+        if (!parsedLogs.empty()) {
+            currentLogIndex = (currentLogIndex + 1) % static_cast<int>(parsedLogs.size());
+        }
+        else {
+            APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
+                ("Log Index: " + std::to_string(currentLogIndex)).c_str());
+        }
+    }
+    else if (str == "SHOW_SQUAD_PLAYERS_ONLY") {
+        for (auto& mainWindow : Settings::windowManager.mainWindows) {
+            mainWindow->squadPlayersOnly = !mainWindow->squadPlayersOnly;
+        }
+        for (auto& widgetWindow : Settings::windowManager.widgetWindows) {
+            widgetWindow->squadPlayersOnly = !widgetWindow->squadPlayersOnly;
+        }
+        if (Settings::windowManager.aggregateWindow) {
+            Settings::windowManager.aggregateWindow->squadPlayersOnly = !Settings::windowManager.aggregateWindow->squadPlayersOnly;
+        }
+        Settings::Save(SettingsPath);
+    }
+}
+
+void RenderHistoryMenu() {
+    if (ImGui::BeginMenu("History")) {
+        for (int i = 0; i < parsedLogs.size(); ++i) {
+            const auto& log = parsedLogs[i];
+            const std::string fnstr = log.filename.substr(0, log.filename.find_last_of('.'));
+            const uint64_t durationMs = log.data.combatEndTime - log.data.combatStartTime;
+            const auto duration = std::chrono::milliseconds(durationMs);
+            const int minutes = std::chrono::duration_cast<std::chrono::minutes>(duration).count();
+            const int seconds = std::chrono::duration_cast<std::chrono::seconds>(duration).count() % 60;
+            const std::string displayName =
+                fnstr + " (" + std::to_string(minutes) + "m " + std::to_string(seconds) + "s)";
+
+            if (ImGui::RadioButton(displayName.c_str(), &currentLogIndex, i)) {
+            }
+        }
+        ImGui::EndMenu();
+    }
 }

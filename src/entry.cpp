@@ -2,6 +2,7 @@
 #include "mumble/Mumble.h"
 #include "imgui/imgui.h"
 #include "gui/WindowRenderer.h"
+#include "gui/windows/OptionsWindow.h"
 #include "shared/Shared.h"
 #include "settings/Settings.h"
 #include "utils/Utils.h"
@@ -18,52 +19,49 @@ void AddonLoad(AddonAPI* aApi);
 void AddonUnload();
 void AddonRender();
 void AddonOptions();
-void ProcessKeybinds(const char* aIdentifier, bool aIsRelease);
 void ReceiveFont(const char* aIdentifier, void* aFont);
 
 AddonDefinition AddonDef = {};
 std::unique_ptr<wvwfightanalysis::gui::WindowRenderer> g_windowRenderer;
+std::unique_ptr<wvwfightanalysis::gui::OptionsWindow> g_optionsWindow;
+
+struct FontEntry {
+    const char* name;
+    float size;
+    ImFont** fontPtr;
+};
+
+static const FontEntry kFonts[] = {
+    {"MENOMONIA_EXTRA_SMALL",    10.0f, &MenomoniaSansExtraSmall},
+    {"MENOMONIA_VERY_SMALL",     12.0f, &MenomoniaSansVerySmall},
+    {"MENOMONIA_SMALL",          14.0f, &MenomoniaSansSmall},
+    {"MENOMONIA_SMALL_MEDIUM",   15.0f, &MenomoniaSansSmallMedium},
+    {"MENOMONIA_MEDIUM_SMALL",   17.0f, &MenomoniaSansMediumSmall},
+    {"MENOMONIA_MEDIUMISH",      18.0f, &MenomoniaSansMediumish},
+    {"MENOMONIA_MEDIUM",         20.0f, &MenomoniaSansMedium},
+    {"MENOMONIA_MEDIUM_LARGE",   26.0f, &MenomoniaSansMediumLarge},
+    {"MENOMONIA_LARGE",          32.0f, &MenomoniaSansLarge},
+    {"MENOMONIA_EXTRA_LARGE",    40.0f, &MenomoniaSansExtraLarge},
+    {"MENOMONIA_HUGE",           50.0f, &MenomoniaSansHuge},
+    {"MENOMONIA_EXTRA_HUGE",     64.0f, &MenomoniaSansExtraHuge},
+    {"MENOMONIA_MASSIVE",        80.0f, &MenomoniaSansMassive},
+};
+
+static const char* const kKeybinds[] = {
+    KB_WINDOW_TOGGLEVISIBLE,
+    "KB_WIDGET_TOGGLEVISIBLE",
+    "LOG_INDEX_UP",
+    "LOG_INDEX_DOWN",
+    "SHOW_SQUAD_PLAYERS_ONLY"
+};
 
 // Font loading callback
 void ReceiveFont(const char* aIdentifier, void* aFont) {
-    if (strcmp(aIdentifier, "MENOMONIA_EXTRA_SMALL") == 0) {
-        MenomoniaSansExtraSmall = (ImFont*)aFont;
-    }
-    else if (strcmp(aIdentifier, "MENOMONIA_VERY_SMALL") == 0) {
-        MenomoniaSansVerySmall = (ImFont*)aFont;
-    }
-    else if (strcmp(aIdentifier, "MENOMONIA_SMALL") == 0) {
-        MenomoniaSansSmall = (ImFont*)aFont;
-    }
-    else if (strcmp(aIdentifier, "MENOMONIA_SMALL_MEDIUM") == 0) {
-        MenomoniaSansSmallMedium = (ImFont*)aFont;
-    }
-    else if (strcmp(aIdentifier, "MENOMONIA_MEDIUM_SMALL") == 0) {
-        MenomoniaSansMediumSmall = (ImFont*)aFont;
-    }
-    else if (strcmp(aIdentifier, "MENOMONIA_MEDIUMISH") == 0) {
-        MenomoniaSansMediumish = (ImFont*)aFont;
-    }
-    else if (strcmp(aIdentifier, "MENOMONIA_MEDIUM") == 0) {
-        MenomoniaSansMedium = (ImFont*)aFont;
-    }
-    else if (strcmp(aIdentifier, "MENOMONIA_MEDIUM_LARGE") == 0) {
-        MenomoniaSansMediumLarge = (ImFont*)aFont;
-    }
-    else if (strcmp(aIdentifier, "MENOMONIA_LARGE") == 0) {
-        MenomoniaSansLarge = (ImFont*)aFont;
-    }
-    else if (strcmp(aIdentifier, "MENOMONIA_EXTRA_LARGE") == 0) {
-        MenomoniaSansExtraLarge = (ImFont*)aFont;
-    }
-    else if (strcmp(aIdentifier, "MENOMONIA_HUGE") == 0) {
-        MenomoniaSansHuge = (ImFont*)aFont;
-    }
-    else if (strcmp(aIdentifier, "MENOMONIA_EXTRA_HUGE") == 0) {
-        MenomoniaSansExtraHuge = (ImFont*)aFont;
-    }
-    else if (strcmp(aIdentifier, "MENOMONIA_MASSIVE") == 0) {
-        MenomoniaSansMassive = (ImFont*)aFont;
+    for (const auto& f : kFonts) {
+        if (strcmp(aIdentifier, f.name) == 0) {
+            *f.fontPtr = (ImFont*)aFont;
+            return;
+        }
     }
 }
 
@@ -87,21 +85,12 @@ void AddonLoad(AddonAPI* aApi) {
     initMaps();
 
     // Load custom fonts in multiple sizes
-    APIDefs->Fonts.AddFromResource("MENOMONIA_EXTRA_SMALL", 10.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
-    APIDefs->Fonts.AddFromResource("MENOMONIA_VERY_SMALL", 12.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
-    APIDefs->Fonts.AddFromResource("MENOMONIA_SMALL", 14.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
-    APIDefs->Fonts.AddFromResource("MENOMONIA_SMALL_MEDIUM", 15.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
-    APIDefs->Fonts.AddFromResource("MENOMONIA_MEDIUM_SMALL", 17.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
-    APIDefs->Fonts.AddFromResource("MENOMONIA_MEDIUMISH", 18.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
-    APIDefs->Fonts.AddFromResource("MENOMONIA_MEDIUM", 20.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
-    APIDefs->Fonts.AddFromResource("MENOMONIA_MEDIUM_LARGE", 26.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
-    APIDefs->Fonts.AddFromResource("MENOMONIA_LARGE", 32.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
-    APIDefs->Fonts.AddFromResource("MENOMONIA_EXTRA_LARGE", 40.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
-    APIDefs->Fonts.AddFromResource("MENOMONIA_HUGE", 50.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
-    APIDefs->Fonts.AddFromResource("MENOMONIA_EXTRA_HUGE", 64.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
-    APIDefs->Fonts.AddFromResource("MENOMONIA_MASSIVE", 80.0f, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
+    for (const auto& f : kFonts) {
+        APIDefs->Fonts.AddFromResource(f.name, f.size, MENOMONIA_SANS_FONT, hSelf, ReceiveFont, nullptr);
+    }
 
     g_windowRenderer = std::make_unique<wvwfightanalysis::gui::WindowRenderer>();
+    g_optionsWindow = std::make_unique<wvwfightanalysis::gui::OptionsWindow>();
 
     for (auto& mainWindow : Settings::windowManager.mainWindows) {
         if (mainWindow->useNexusEscClose) {
@@ -128,11 +117,9 @@ void AddonLoad(AddonAPI* aApi) {
         );
     }
 
-    APIDefs->InputBinds.RegisterWithString(KB_WINDOW_TOGGLEVISIBLE, ProcessKeybinds, "(null)");
-    APIDefs->InputBinds.RegisterWithString("KB_WIDGET_TOGGLEVISIBLE", ProcessKeybinds, "(null)");
-    APIDefs->InputBinds.RegisterWithString("LOG_INDEX_UP", ProcessKeybinds, "(null)");
-    APIDefs->InputBinds.RegisterWithString("LOG_INDEX_DOWN", ProcessKeybinds, "(null)");
-    APIDefs->InputBinds.RegisterWithString("SHOW_SQUAD_PLAYERS_ONLY", ProcessKeybinds, "(null)");
+    for (const auto& kb : kKeybinds) {
+        APIDefs->InputBinds.RegisterWithString(kb, ProcessKeybinds, "(null)");
+    }
     directoryMonitorThread = std::thread(monitorDirectory, Settings::logHistorySize, Settings::pollIntervalMilliseconds);
     
     InitializeMursaatPanelIntegration();
@@ -155,21 +142,12 @@ void AddonUnload() {
 
     // Now safe to destroy window renderer
     g_windowRenderer.reset();
+    g_optionsWindow.reset();
 
     // Release custom fonts after rendering has stopped
-    APIDefs->Fonts.Release("MENOMONIA_EXTRA_SMALL", ReceiveFont);
-    APIDefs->Fonts.Release("MENOMONIA_VERY_SMALL", ReceiveFont);
-    APIDefs->Fonts.Release("MENOMONIA_SMALL", ReceiveFont);
-    APIDefs->Fonts.Release("MENOMONIA_SMALL_MEDIUM", ReceiveFont);
-    APIDefs->Fonts.Release("MENOMONIA_MEDIUM_SMALL", ReceiveFont);
-    APIDefs->Fonts.Release("MENOMONIA_MEDIUMISH", ReceiveFont);
-    APIDefs->Fonts.Release("MENOMONIA_MEDIUM", ReceiveFont);
-    APIDefs->Fonts.Release("MENOMONIA_MEDIUM_LARGE", ReceiveFont);
-    APIDefs->Fonts.Release("MENOMONIA_LARGE", ReceiveFont);
-    APIDefs->Fonts.Release("MENOMONIA_EXTRA_LARGE", ReceiveFont);
-    APIDefs->Fonts.Release("MENOMONIA_HUGE", ReceiveFont);
-    APIDefs->Fonts.Release("MENOMONIA_EXTRA_HUGE", ReceiveFont);
-    APIDefs->Fonts.Release("MENOMONIA_MASSIVE", ReceiveFont);
+    for (const auto& f : kFonts) {
+        APIDefs->Fonts.Release(f.name, ReceiveFont);
+    }
 
     for (auto& mainWindow : Settings::windowManager.mainWindows) {
         if (mainWindow->useNexusEscClose) {
@@ -187,81 +165,12 @@ void AddonUnload() {
         APIDefs->UI.DeregisterCloseOnEscape(Settings::windowManager.aggregateWindow->windowId.c_str());
     }
 
-    APIDefs->InputBinds.Deregister("KB_WINDOW_TOGGLEVISIBLE");
-    APIDefs->InputBinds.Deregister("KB_WIDGET_TOGGLEVISIBLE");
-    APIDefs->InputBinds.Deregister("LOG_INDEX_UP");
-    APIDefs->InputBinds.Deregister("LOG_INDEX_DOWN");
-    APIDefs->InputBinds.Deregister("SHOW_SQUAD_PLAYERS_ONLY");
+    for (const auto& kb : kKeybinds) {
+        APIDefs->InputBinds.Deregister(kb);
+    }
     
     CleanupMursaatPanelIntegration();
     APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME, "Addon unloaded successfully.");
-}
-
-void ProcessKeybinds(const char* aIdentifier, bool aIsRelease) {
-    std::string str = aIdentifier;
-    if (aIsRelease) return;
-
-    if (str == "KB_WINDOW_TOGGLEVISIBLE") {
-        bool anyVisible = false;
-        for (const auto& mainWindow : Settings::windowManager.mainWindows) {
-            if (mainWindow->isEnabled) {
-                anyVisible = true;
-                break;
-            }
-        }
-        for (auto& mainWindow : Settings::windowManager.mainWindows) {
-            mainWindow->isEnabled = !anyVisible;
-        }
-        Settings::Save(SettingsPath);
-    }
-    else if (str == "KB_WIDGET_TOGGLEVISIBLE") {
-        bool anyVisible = false;
-        for (const auto& widgetWindow : Settings::windowManager.widgetWindows) {
-            if (widgetWindow->isEnabled) {
-                anyVisible = true;
-                break;
-            }
-        }
-        for (auto& widgetWindow : Settings::windowManager.widgetWindows) {
-            widgetWindow->isEnabled = !anyVisible;
-        }
-        Settings::Save(SettingsPath);
-    }
-    else if (str == "LOG_INDEX_DOWN") {
-        if (!parsedLogs.empty()) {
-            if (currentLogIndex == 0) {
-                currentLogIndex = static_cast<int>(parsedLogs.size()) - 1;
-            }
-            else {
-                currentLogIndex--;
-            }
-        }
-        else {
-            APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
-                ("Log Index: " + std::to_string(currentLogIndex)).c_str());
-        }
-    }
-    else if (str == "LOG_INDEX_UP") {
-        if (!parsedLogs.empty()) {
-            currentLogIndex = (currentLogIndex + 1) % static_cast<int>(parsedLogs.size());
-        }
-        else {
-            APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
-                ("Log Index: " + std::to_string(currentLogIndex)).c_str());
-        }
-    }
-    else if (str == "SHOW_SQUAD_PLAYERS_ONLY") {
-        for (auto& mainWindow : Settings::windowManager.mainWindows) {
-            mainWindow->squadPlayersOnly = !mainWindow->squadPlayersOnly;
-        }
-        for (auto& widgetWindow : Settings::windowManager.widgetWindows) {
-            widgetWindow->squadPlayersOnly = !widgetWindow->squadPlayersOnly;
-        }
-        if (Settings::windowManager.aggregateWindow) {
-            Settings::windowManager.aggregateWindow->squadPlayersOnly = !Settings::windowManager.aggregateWindow->squadPlayersOnly;
-        }
-        Settings::Save(SettingsPath);
-    }
 }
 
 void AddonRender() {
@@ -272,352 +181,8 @@ void AddonRender() {
 
 void AddonOptions()
 {
-    ImGui::Text("WvW Fight Analysis Settings");
-
-    if (ImGui::BeginTabBar("AddonOptionsTabBar"))
-    {
-        // Global Settings
-        if (ImGui::BeginTabItem("Global Settings"))
-        {
-            if (ImGui::InputText("Custom Log Path", Settings::LogDirectoryPathC, sizeof(Settings::LogDirectoryPathC))) {
-                Settings::LogDirectoryPath = Settings::LogDirectoryPathC;
-                Settings::Settings[CUSTOM_LOG_PATH] = Settings::LogDirectoryPath;
-                Settings::Save(SettingsPath);
-            }
-
-            int tempLogHistorySize = static_cast<int>(Settings::logHistorySize);
-            if (ImGui::InputInt("Log History Size", &tempLogHistorySize)) {
-                Settings::logHistorySize = static_cast<size_t>(std::clamp(tempLogHistorySize, 1, 20));
-                Settings::Settings[LOG_HISTORY_SIZE] = Settings::logHistorySize;
-                Settings::Save(SettingsPath);
-            }
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("How many parsed logs to keep.");
-            }
-
-            if (ImGui::InputInt("Team Player Threshold", &Settings::teamPlayerThreshold)) {
-                Settings::teamPlayerThreshold = std::clamp(Settings::teamPlayerThreshold, 0, 100);
-                Settings::Settings[TEAM_PLAYER_THRESHOLD] = Settings::teamPlayerThreshold;
-                Settings::Save(SettingsPath);
-            }
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Set a minimum number of team players required to render team.");
-            }
-
-            if (ImGui::InputInt("Min Total Players", &Settings::minTotalPlayers)) {
-                Settings::minTotalPlayers = std::clamp(Settings::minTotalPlayers, 0, 50);
-                Settings::Settings[MIN_TOTAL_PLAYERS] = Settings::minTotalPlayers;
-                Settings::Save(SettingsPath);
-            }
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Skip parsing logs with fewer than this many total identified players.");
-            }
-
-            if (ImGui::InputInt("Min Total Deaths", &Settings::minTotalDeaths)) {
-                Settings::minTotalDeaths = std::clamp(Settings::minTotalDeaths, 0, 50);
-                Settings::Settings[MIN_TOTAL_DEATHS] = Settings::minTotalDeaths;
-                Settings::Save(SettingsPath);
-            }
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Skip parsing logs with fewer than this many total deaths.");
-            }
-
-            if (ImGui::InputInt("Min Total Downs", &Settings::minTotalDowns)) {
-                Settings::minTotalDowns = std::clamp(Settings::minTotalDowns, 0, 50);
-                Settings::Settings[MIN_TOTAL_DOWNS] = Settings::minTotalDowns;
-                Settings::Save(SettingsPath);
-            }
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Skip parsing logs with fewer than this many total downs.");
-            }
-
-            if (ImGui::InputInt("Min Combat Duration (s)", &Settings::minCombatDuration)) {
-                Settings::minCombatDuration = std::clamp(Settings::minCombatDuration, 0, 120);
-                Settings::Settings[MIN_COMBAT_DURATION] = Settings::minCombatDuration;
-                Settings::Save(SettingsPath);
-            }
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Skip parsing logs with combat duration shorter than this (seconds).");
-            }
-
-            if (ImGui::Checkbox("Show Alert On Log Parse", &Settings::showNewParseAlert)) {
-                Settings::Settings[SHOW_NEW_PARSE_ALERT] = Settings::showNewParseAlert;
-                Settings::Save(SettingsPath);
-            }
-
-            if (ImGui::Checkbox("Enable Wine Compatibility Mode", &Settings::forceLinuxCompatibilityMode)) {
-                Settings::Settings[FORCE_LINUX_COMPAT] = Settings::forceLinuxCompatibilityMode;
-                Settings::Save(SettingsPath);
-            }
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Wine/Proton doesn't support ReadDirectoryChangesW, use directory polling instead.");
-            }
-
-            if (Settings::forceLinuxCompatibilityMode) {
-                int tempPollIntervalMilliseconds = static_cast<int>(Settings::pollIntervalMilliseconds);
-                if (ImGui::InputInt("ms Polling Interval", &tempPollIntervalMilliseconds)) {
-                    Settings::pollIntervalMilliseconds =
-                        static_cast<size_t>(std::clamp(tempPollIntervalMilliseconds, 500, 10000));
-                    Settings::Settings[POLL_INTERVAL_MILLISECONDS] = Settings::pollIntervalMilliseconds;
-                    Settings::Save(SettingsPath);
-                }
-                if (ImGui::IsItemHovered()) {
-                    ImGui::SetTooltip("Polling Interval when using Wine compatibility mode.");
-                }
-            }
-
-            if (ImGui::Checkbox("Enable Debug Logging", &Settings::debugStringsMode)) {
-                Settings::Settings[DEBUG_STRINGS_MODE] = Settings::debugStringsMode;
-                Settings::Save(SettingsPath);
-            }
-
-            const char* specIconOptions[] = {
-                "Simple White",
-                "White",
-                "Colored",
-                "Simple Colored"
-            };
-            int selectedSpecIconStyle = Settings::scrapperIconStyle;
-            if (ImGui::Combo("Spec Icon Style", &selectedSpecIconStyle, specIconOptions, IM_ARRAYSIZE(specIconOptions))) {
-                Settings::scrapperIconStyle = std::clamp(selectedSpecIconStyle, 0, 3);
-                Settings::Settings[SCRAPPER_ICON_STYLE] = Settings::scrapperIconStyle;
-                InvalidateProfessionIconTextures();
-                Settings::Save(SettingsPath);
-            }
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Select which profession/spec icon variant to use.");
-            }
-
-
-            bool enabled = !isRestartInProgress.load();
-            if (!enabled) {
-                ImVec4 disabledColor = ImVec4(0.5f, 0.5f, 0.5f, 1.0f);
-                ImGui::PushStyleColor(ImGuiCol_Button, disabledColor);
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, disabledColor);
-                ImGui::PushStyleColor(ImGuiCol_ButtonActive, disabledColor);
-            }
-
-            if (ImGui::Button("Restart Directory Monitoring") && enabled) {
-                isRestartInProgress.store(true);
-                std::thread([]() {
-                    stopMonitoring = true;
-                    if (directoryMonitorThread.joinable()) {
-                        directoryMonitorThread.join();
-                    }
-                    stopMonitoring = false;
-                    directoryMonitorThread = std::thread(
-                        monitorDirectory,
-                        Settings::logHistorySize,
-                        Settings::pollIntervalMilliseconds
-                    );
-                    isRestartInProgress.store(false);
-                    }).detach();
-            }
-
-            if (!enabled) {
-                ImGui::PopStyleColor(3);
-            }
-
-            ImGui::EndTabItem();
-        }
-
-        // Main Windows
-        if (ImGui::BeginTabItem("Windows"))
-        {
-            ImGui::BeginGroup();
-            if (ImGui::Button("Add Window")) {
-                Settings::windowManager.AddMainWindow();
-                Settings::Save(SettingsPath);
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Remove Window") && Settings::windowManager.mainWindows.size() > 1) {
-                Settings::windowManager.RemoveMainWindow();
-                Settings::Save(SettingsPath);
-            }
-            ImGui::EndGroup();
-            ImGui::Separator();
-
-            int windowIndex = 0;
-            for (auto& window : Settings::windowManager.mainWindows) {
-                ImGui::PushID(windowIndex);
-
-                if (ImGui::Checkbox("##Enabled", &window->isEnabled)) {
-                    Settings::Save(SettingsPath);
-                }
-                if (ImGui::IsItemHovered()) {
-                    ImGui::SetTooltip("Enable or disable this main window.");
-                }
-
-                ImGui::SameLine();
-
-                std::string displayName = window->windowName.empty() ?
-                    "Main Window " + std::to_string(windowIndex + 1) : window->windowName;
-                bool nodeOpen = ImGui::TreeNodeEx(
-                    "##Node",
-                    ImGuiTreeNodeFlags_AllowItemOverlap,
-                    "%s",
-                    displayName.c_str()
-                );
-
-                if (nodeOpen) {
-
-                    if (ImGui::Checkbox("Use Nexus Esc to Close", &window->useNexusEscClose)) {
-                        if (window->useNexusEscClose) {
-                            RegisterWindowForNexusEsc(window.get(), "WvW Fight Analysis");
-                        }
-                        else {
-                            UnregisterWindowFromNexusEsc(window.get(), "WvW Fight Analysis");
-                        }
-                        Settings::Save(SettingsPath);
-                    }
-
-                    if (ImGui::Checkbox("Hide In Combat", &window->hideInCombat)) {
-                        Settings::Save(SettingsPath);
-                    }
-                    if (ImGui::Checkbox("Hide Out Of Combat", &window->hideOutOfCombat)) {
-                        Settings::Save(SettingsPath);
-                    }
-                    if (ImGui::Checkbox("Lock Position", &window->disableMoving)) {
-                        Settings::Save(SettingsPath);
-                    }
-                    if (ImGui::IsItemHovered()) {
-                        ImGui::SetTooltip("Disables moving & resizing.");
-                    }
-                    if (ImGui::Checkbox("Enable Mouse-Through", &window->disableClicking)) {
-                        Settings::Save(SettingsPath);
-                    }
-                    if (ImGui::IsItemHovered()) {
-                        ImGui::SetTooltip("Window cannot be interacted with via mouse.");
-                    }
-
-                    ImGui::TreePop();
-                }
-
-                ImGui::PopID();
-                windowIndex++;
-            }
-
-            ImGui::EndTabItem();
-        }
-
-        // Widget Windows
-        if (ImGui::BeginTabItem("Widgets"))
-        {
-            ImGui::BeginGroup();
-            if (ImGui::Button("Add Widget")) {
-                Settings::windowManager.AddWidgetWindow();
-                Settings::Save(SettingsPath);
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Remove Widget") && Settings::windowManager.widgetWindows.size() > 1) {
-                Settings::windowManager.RemoveWidgetWindow();
-                Settings::Save(SettingsPath);
-            }
-            ImGui::EndGroup();
-            ImGui::Separator();
-
-            int windowIndex = 0;
-            for (auto& window : Settings::windowManager.widgetWindows) {
-                ImGui::PushID(windowIndex);
-
-                if (ImGui::Checkbox("##Enabled", &window->isEnabled)) {
-                    Settings::Save(SettingsPath);
-                }
-                if (ImGui::IsItemHovered()) {
-                    ImGui::SetTooltip("Enable or disable this widget window.");
-                }
-
-                ImGui::SameLine();
-
-                std::string displayName = window->windowName.empty() ?
-                    "Widget Window " + std::to_string(windowIndex + 1) : window->windowName;
-                bool nodeOpen = ImGui::TreeNodeEx(
-                    "##Node",
-                    ImGuiTreeNodeFlags_AllowItemOverlap,
-                    "%s",
-                    displayName.c_str()
-                );
-
-                if (nodeOpen) {
-
-                    if (ImGui::Checkbox("Use Nexus Esc to Close", &window->useNexusEscClose)) {
-                        if (window->useNexusEscClose) {
-                            RegisterWindowForNexusEsc(window.get(), "Team Ratio Bar");
-                        }
-                        else {
-                            UnregisterWindowFromNexusEsc(window.get(), "Team Ratio Bar");
-                        }
-                        Settings::Save(SettingsPath);
-                    }
-
-                    if (ImGui::Checkbox("Hide In Combat", &window->hideInCombat)) {
-                        Settings::Save(SettingsPath);
-                    }
-                    if (ImGui::Checkbox("Hide Out Of Combat", &window->hideOutOfCombat)) {
-                        Settings::Save(SettingsPath);
-                    }
-                    if (ImGui::Checkbox("Lock Position", &window->disableMoving)) {
-                        Settings::Save(SettingsPath);
-                    }
-                    if (ImGui::IsItemHovered()) {
-                        ImGui::SetTooltip("Disables moving & resizing.");
-                    }
-                    if (ImGui::Checkbox("Enable Mouse-Through", &window->disableClicking)) {
-                        Settings::Save(SettingsPath);
-                    }
-                    if (ImGui::IsItemHovered()) {
-                        ImGui::SetTooltip("Window cannot be interacted with via mouse.");
-                    }
-
-                    ImGui::TreePop();
-                }
-
-                ImGui::PopID();
-                windowIndex++;
-            }
-
-            ImGui::EndTabItem();
-        }
-
-        // Aggregate Window
-        if (ImGui::BeginTabItem("Aggregate Window"))
-        {
-            auto& window = Settings::windowManager.aggregateWindow;
-
-            if (ImGui::Checkbox("Enabled", &window->isEnabled)) {
-                Settings::Save(SettingsPath);
-            }
-
-            if (ImGui::Checkbox("Use Nexus Esc to Close", &window->useNexusEscClose)) {
-                if (window->useNexusEscClose) {
-                    RegisterWindowForNexusEsc(window.get(), "Aggregate Stats");
-                }
-                else {
-                    UnregisterWindowFromNexusEsc(window.get(), "Aggregate Stats");
-                }
-                Settings::Save(SettingsPath);
-            }
-
-            if (ImGui::Checkbox("Hide In Combat", &window->hideInCombat)) {
-                Settings::Save(SettingsPath);
-            }
-            if (ImGui::Checkbox("Hide Out Of Combat", &window->hideOutOfCombat)) {
-                Settings::Save(SettingsPath);
-            }
-            if (ImGui::Checkbox("Hide When Empty", &window->hideWhenEmpty)) {
-                Settings::Save(SettingsPath);
-            }
-            if (ImGui::Checkbox("Lock Position", &window->disableMoving)) {
-                Settings::Save(SettingsPath);
-            }
-            if (ImGui::Checkbox("Enable Mouse-Through", &window->disableClicking)) {
-                Settings::Save(SettingsPath);
-            }
-
-            ImGui::EndTabItem();
-        }
-
-        ImGui::EndTabBar();
+    if (g_optionsWindow) {
+        g_optionsWindow->Render();
     }
 }
 

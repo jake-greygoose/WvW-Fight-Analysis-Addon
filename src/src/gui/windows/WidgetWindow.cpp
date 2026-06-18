@@ -4,7 +4,6 @@
 #include "resource.h"
 #include "imgui/imgui_internal.h"
 #include "thirdparty/imgui_positioning/imgui_positioning.h"
-#include "ImAnimate.h" 
 
 namespace wvwfightanalysis::gui {
 
@@ -253,7 +252,7 @@ namespace wvwfightanalysis::gui {
                 Settings::Save(SettingsPath);
             }
 
-            RenderHistoryMenu(settings);
+            RenderHistoryMenu();
             RenderDisplayStatsMenu(settings);
             RenderStyleMenu(settings);
 
@@ -274,25 +273,6 @@ namespace wvwfightanalysis::gui {
         }
 
         // Don't pop style vars here - let them apply to ContextMenuPosition too
-    }
-
-    void WidgetWindow::RenderHistoryMenu(WidgetWindowSettings* settings) {
-        if (ImGui::BeginMenu("History")) {
-            for (int i = 0; i < parsedLogs.size(); ++i) {
-                const auto& log = parsedLogs[i];
-                const std::string fnstr = log.filename.substr(0, log.filename.find_last_of('.'));
-                const uint64_t durationMs = log.data.combatEndTime - log.data.combatStartTime;
-                const auto duration = std::chrono::milliseconds(durationMs);
-                const int minutes = std::chrono::duration_cast<std::chrono::minutes>(duration).count();
-                const int seconds = std::chrono::duration_cast<std::chrono::seconds>(duration).count() % 60;
-                const std::string displayName = fnstr + " (" + std::to_string(minutes) + "m " + std::to_string(seconds) + "s)";
-
-                if (ImGui::RadioButton(displayName.c_str(), &currentLogIndex, i)) {
-                    // Selection update handled automatically by RadioButton
-                }
-            }
-            ImGui::EndMenu();
-        }
     }
 
     void WidgetWindow::RenderDisplayStatsMenu(WidgetWindowSettings* settings) {

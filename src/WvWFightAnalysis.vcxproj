@@ -190,10 +190,10 @@
   <ItemGroup>
     <ClInclude Include="include\gui\BarTemplate.h" />
     <ClInclude Include="include\gui\PieChart.h" />
-    <ClInclude Include="include\gui\gui.h" />
     <ClInclude Include="include\gui\WindowRenderer.h" />
     <ClInclude Include="include\gui\windows\AggregateWindow.h" />
     <ClInclude Include="include\gui\windows\MainWindow.h" />
+    <ClInclude Include="include\gui\windows\OptionsWindow.h" />
     <ClInclude Include="include\gui\windows\WidgetWindow.h" />
     <ClInclude Include="include\integration\MursaatPanelIntegration.h" />
     <ClInclude Include="include\parser\boon_strip_skills.h" />
@@ -218,7 +218,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="entry.cpp" />
-    <ClCompile Include="gui.cpp" />
     <ClCompile Include="imgui\imgui.cpp" />
     <ClCompile Include="imgui\imgui_demo.cpp" />
     <ClCompile Include="imgui\imgui_draw.cpp" />
@@ -254,6 +253,7 @@
     <ClCompile Include="src\gui\WindowRenderer.cpp" />
     <ClCompile Include="src\gui\windows\AggregateWindow.cpp" />
     <ClCompile Include="src\gui\windows\MainWindow.cpp" />
+    <ClCompile Include="src\gui\windows\OptionsWindow.cpp" />
     <ClCompile Include="src\gui\windows\WidgetWindow.cpp" />
     <ClCompile Include="src\integration\MursaatPanelIntegration.cpp" />
     <ClCompile Include="src\parser\boon_strip_skills.cpp" />

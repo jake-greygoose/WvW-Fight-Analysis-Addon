@@ -31,7 +31,6 @@ namespace wvwfightanalysis::gui {
             HINSTANCE hSelf);
         void RenderMainWindowSettingsPopup(MainWindowSettings* settings);
         void RenderExcludeMenu(MainWindowSettings* settings);
-        void RenderHistoryMenu(MainWindowSettings* settings);
         void RenderTemplateSettings(MainWindowSettings* settings);
         float CalculateBarWidth(
             const SpecStats& stats,

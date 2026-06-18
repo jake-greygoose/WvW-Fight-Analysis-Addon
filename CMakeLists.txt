@@ -14,9 +14,8 @@ endif()
 
 # Source files
 set(PROJECT_SOURCES
-    # Main files
+    # Entry point
     src/entry.cpp
-    src/gui.cpp
 
     # GUI sources
     src/src/gui/BarTemplate.cpp
@@ -24,6 +23,7 @@ set(PROJECT_SOURCES
     src/src/gui/WindowRenderer.cpp
     src/src/gui/windows/AggregateWindow.cpp
     src/src/gui/windows/MainWindow.cpp
+    src/src/gui/windows/OptionsWindow.cpp
     src/src/gui/windows/WidgetWindow.cpp
 
     # Integration

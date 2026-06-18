@@ -25,10 +25,11 @@
     <ClCompile Include="src\settings\Settings.cpp" />
     <ClCompile Include="src\parser\evtc_parser.cpp" />
     <ClCompile Include="src\utils\utils.cpp" />
-    <ClCompile Include="gui.cpp" />
     <ClCompile Include="src\gui\BarTemplate.cpp" />
+    <ClCompile Include="src\gui\PieChart.cpp" />
     <ClCompile Include="src\gui\WindowRenderer.cpp" />
     <ClCompile Include="src\gui\windows\MainWindow.cpp" />
+    <ClCompile Include="src\gui\windows\OptionsWindow.cpp" />
     <ClCompile Include="src\gui\windows\AggregateWindow.cpp" />
     <ClCompile Include="src\gui\windows\WidgetWindow.cpp" />
     <ClCompile Include="src\parser\boon_strip_tracker.cpp" />
@@ -60,10 +61,10 @@
     <ClInclude Include="mumble\Mumble.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="include\parser\evtc_parser.h" />
-    <ClInclude Include="include\gui\gui.h" />
     <ClInclude Include="include\gui\BarTemplate.h" />
     <ClInclude Include="include\gui\WindowRenderer.h" />
     <ClInclude Include="include\gui\windows\MainWindow.h" />
+    <ClInclude Include="include\gui\windows\OptionsWindow.h" />
     <ClInclude Include="include\gui\windows\WidgetWindow.h" />
     <ClInclude Include="include\gui\windows\AggregateWindow.h" />
     <ClInclude Include="include\parser\boon_strip_tracker.h" />

@@ -1,5 +1,5 @@
 #define NOMINMAX
-#include "evtc_parser.h"
+#include "parser/evtc_parser.h"
 #include "settings/Settings.h"
 #include "shared/Shared.h"
 #include "utils/Utils.h"
@@ -8,7 +8,6 @@
 #include <chrono>
 #include <filesystem>
 #include <shlobj.h>
-#include <sstream>
 #include <unordered_map>
 #include <unordered_set>
 #include <cstring>
@@ -1191,7 +1190,7 @@ void processNewEVTCFile(const std::string& filePath)
 	std::string filename = path.filename().string();
 
 	// Trigger "new log detected" animation
-	newLogDetectedTime.store(ImGui::GetTime());
+	newLogDetectedTime.store(static_cast<float>(ImGui::GetTime()));
 
 	ParsedLog log;
 	log.filename = filename;
@@ -1287,7 +1286,7 @@ void processNewEVTCFile(const std::string& filePath)
 	}
 
 	// Trigger "parsing complete" animation
-	parseCompleteTime.store(ImGui::GetTime());
+	parseCompleteTime.store(static_cast<float>(ImGui::GetTime()));
 
 	LogParsedEventArgs args{log.filename.c_str(), &log.data};
 	APIDefs->Events.Raise(EV_LOG_PARSED, &args);

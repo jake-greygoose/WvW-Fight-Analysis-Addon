@@ -21,7 +21,7 @@ std::filesystem::path getArcPath();
 Texture** getTextureInfo(const std::string& eliteSpec, int* outResourceId);
 void InvalidateProfessionIconTextures();
 std::vector<char> extractZipFile(const std::string& filePath);
-std::string formatDamage(double damage);
+std::string formatDamage(uint64_t damage);
 std::string generateLogDisplayName(const std::string& filename, uint64_t combatStartMs, uint64_t combatEndMs);
 std::string formatDuration(uint64_t milliseconds);
 bool isRunningUnderWine();
@@ -49,6 +49,10 @@ std::function<bool(
     const std::pair<std::string, SpecStats>&
     )>
     getSpecSortComparator(const std::string& sortCriteria, bool vsLogPlayers);
+
+void ProcessKeybinds(const char* aIdentifier, bool aIsRelease);
+
+void RenderHistoryMenu();
 
 void LogMessage(ELogLevel level, const char* msg);
 void LogMessage(ELogLevel level, const std::string& msg);

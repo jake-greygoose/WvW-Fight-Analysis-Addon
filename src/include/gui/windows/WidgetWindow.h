@@ -18,7 +18,6 @@ namespace wvwfightanalysis::gui {
     private:
         ImTextureID GetStatIcon(const WidgetWindowSettings* settings);
         void RenderSettingsPopup(WidgetWindowSettings* settings);
-        void RenderHistoryMenu(WidgetWindowSettings* settings);
         void RenderDisplayStatsMenu(WidgetWindowSettings* settings);
         void RenderStyleMenu(WidgetWindowSettings* settings);
 

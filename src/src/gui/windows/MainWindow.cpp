@@ -3,8 +3,6 @@
 #include "resource.h"
 #include "thirdparty/imgui_positioning/imgui_positioning.h"
 #include <algorithm>
-#include <sstream>
-#include <iomanip>
 #include <unordered_map>
 #include <string>
 
@@ -166,7 +164,7 @@ namespace wvwfightanalysis::gui {
             
             auto teamIt = currentLogData.teamStats.find(team_names[i]);
             teams[i].hasData = (teamIt != currentLogData.teamStats.end() &&
-                teamIt->second.totalPlayers >= Settings::teamPlayerThreshold);
+                teamIt->second.totalPlayers >= static_cast<uint32_t>(Settings::teamPlayerThreshold));
             if (teams[i].hasData) {
                 teamsWithData++;
                 teams[i].stats = &teamIt->second;
@@ -873,7 +871,7 @@ namespace wvwfightanalysis::gui {
             Settings::Save(SettingsPath);
         }
 
-        RenderHistoryMenu(settings);
+        RenderHistoryMenu();
         RenderExcludeMenu(settings);
 
         // Display Settings
@@ -986,26 +984,6 @@ namespace wvwfightanalysis::gui {
             if (ImGui::Checkbox("blue team", &settings->excludeBlueTeam)) Settings::Save(SettingsPath);
             if (ImGui::Checkbox("green team", &settings->excludeGreenTeam)) Settings::Save(SettingsPath);
 
-            ImGui::EndMenu();
-        }
-    }
-
-    void MainWindow::RenderHistoryMenu(MainWindowSettings* settings) {
-        if (ImGui::BeginMenu("History")) {
-            for (int i = 0; i < parsedLogs.size(); ++i) {
-                const auto& log = parsedLogs[i];
-                const std::string fnstr = log.filename.substr(0, log.filename.find_last_of('.'));
-                const uint64_t durationMs = log.data.combatEndTime - log.data.combatStartTime;
-                const auto duration = std::chrono::milliseconds(durationMs);
-                const int minutes = std::chrono::duration_cast<std::chrono::minutes>(duration).count();
-                const int seconds = std::chrono::duration_cast<std::chrono::seconds>(duration).count() % 60;
-                const std::string displayName =
-                    fnstr + " (" + std::to_string(minutes) + "m " + std::to_string(seconds) + "s)";
-
-                if (ImGui::RadioButton(displayName.c_str(), &currentLogIndex, i)) {
-                    // Selection update handled automatically by RadioButton
-                }
-            }
             ImGui::EndMenu();
         }
     }
