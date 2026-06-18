@@ -1,9 +1,6 @@
 name: Build and Release to Public Repo
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       custom_tag:
