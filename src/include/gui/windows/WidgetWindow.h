@@ -1,6 +1,8 @@
 #pragma once
 #include "settings/Settings.h"
 #include "shared/Shared.h"
+#include <unordered_map>
+#include <vector>
 
 namespace wvwfightanalysis::gui {
 
@@ -16,6 +18,14 @@ namespace wvwfightanalysis::gui {
         void Render(HINSTANCE hSelf, WidgetWindowSettings* settings);
 
     private:
+        struct BarAnimState {
+            std::vector<float> smoothedFractions;
+            std::vector<float> fractionVel;
+            float labelAlpha = 1.0f;
+        };
+
+        std::unordered_map<const WidgetWindowSettings*, BarAnimState> m_barAnimStates;
+
         ImTextureID GetStatIcon(const WidgetWindowSettings* settings);
         void RenderSettingsPopup(WidgetWindowSettings* settings);
         void RenderDisplayStatsMenu(WidgetWindowSettings* settings);

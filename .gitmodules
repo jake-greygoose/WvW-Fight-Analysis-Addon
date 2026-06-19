@@ -7,6 +7,3 @@
 [submodule "src/mumble"]
 	path = src/mumble
 	url = https://github.com/RaidcoreGG/RCGG-lib-mumble-api
-[submodule "src/include/thirdparty/ImAnimate"]
-	path = src/include/thirdparty/ImAnimate
-	url = https://github.com/RaidcoreGG/ImAnimate.git

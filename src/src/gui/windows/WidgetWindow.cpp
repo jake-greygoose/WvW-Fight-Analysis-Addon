@@ -4,8 +4,21 @@
 #include "resource.h"
 #include "imgui/imgui_internal.h"
 #include "thirdparty/imgui_positioning/imgui_positioning.h"
+#include <cmath>
 
 namespace wvwfightanalysis::gui {
+
+static void ApplyCombatWobble(std::vector<float>& values, float time, float magnitude) {
+    for (size_t i = 0; i < values.size(); ++i) {
+        float variation = sinf(time * (0.5f + i * 0.15f) + i * 2.0f) * magnitude;
+        values[i] *= (1.0f + variation);
+        if (values[i] < 0.0f) values[i] = 0.0f;
+    }
+    float total = 0.0f;
+    for (float v : values) total += v;
+    if (total > 0.0f)
+        for (float& v : values) v /= total;
+}
 
     void WidgetWindow::Render(HINSTANCE hSelf, WidgetWindowSettings* settings) {
         if (!settings->isEnabled)
@@ -531,7 +544,7 @@ namespace wvwfightanalysis::gui {
     )
     {
         ImDrawList* draw_list = ImGui::GetWindowDrawList();
- 
+       
         // Get current position in the window
         const ImVec2 p = ImGui::GetCursorScreenPos();
 
@@ -540,11 +553,7 @@ namespace wvwfightanalysis::gui {
             ? currentFrameRounding
             : static_cast<float>(settings->widgetRoundness);
 
-        // Choose the correct font
-        if (settings->largerFont)
-            ImGui::PushFont((ImFont*)NexusLink->FontBig);
-        else
-            ImGui::PushFont((ImFont*)NexusLink->Font);
+        ImGui::PushFont(settings->largerFont ? MenomoniaSansLarge : MenomoniaSansMedium);
 
         const float sz = ImGui::GetFontSize();
         const float iconWidth = sz;
@@ -563,44 +572,132 @@ namespace wvwfightanalysis::gui {
             }
         }
 
-        std::vector<ImU32> colorsU32;
-        colorsU32.reserve(numTeams);
+        std::vector<ImU32> baseColorsU32;
+        baseColorsU32.reserve(numTeams);
         for (const auto& color : colors) {
-            colorsU32.push_back(ImGui::ColorConvertFloat4ToU32(color));
+            baseColorsU32.push_back(ImGui::ColorConvertFloat4ToU32(color));
         }
 
         // Basic layout
         float x = p.x;
         float y = p.y;
         const float width = size.x;
-        const float height = size.y;
+        const float baseHeight = size.y;
 
-        const float leftPadding = 10.0f;
-        const float rightPadding = 5.0f;
-        const float interPadding = 5.0f;
+        constexpr float kLeftPadding = 10.0f;
+        constexpr float kRightPadding = 5.0f;
+        constexpr float kInterPadding = 5.0f;
+        constexpr float kZeroThreshold = 0.0001f;
 
         float iconAreaWidth = 0.0f;
         float barX = x;
         const bool hasIcon = (settings->showWidgetIcon && statIcon != nullptr);
         if (hasIcon) {
-            iconAreaWidth = leftPadding + iconWidth + rightPadding;
-            barX = x + iconAreaWidth + interPadding;
+            iconAreaWidth = kLeftPadding + iconWidth + kRightPadding;
+            barX = x + iconAreaWidth + kInterPadding;
         }
 
+        // --- Animation state (per-widget, keyed by settings pointer) ---
+        BarAnimState& anim = m_barAnimStates[settings];
+        auto& smoothedFractions = anim.smoothedFractions;
+        auto& fractionVel       = anim.fractionVel;
+        auto& labelAlpha        = anim.labelAlpha;
+
+        bool inCombat = MumbleLink->Context.IsInCombat;
+        float time = ImGui::GetTime();
+        float dt = ImGui::GetIO().DeltaTime;
+        if (dt <= 0.0f) dt = 1.0f / 60.0f;
+
+        // Start with base fractions, modified by animations
+        std::vector<float> displayFractions = fractions;
+        float displayHeight = baseHeight;
+        bool hideLabels = false;
+        bool widthsAnimating = false; // when true, seams are drawn sub-pixel (smooth, no 1px snap)
+
+        // In-combat: gently wobble the segment widths so the bar reads as "live /
+        // values not yet known", layered under the sweeping shimmer. Kept subtle
+        // and -- crucially -- rendered sub-pixel (widthsAnimating) so the seams
+        // glide instead of snapping to whole pixels, which is what looked jittery.
+        if (inCombat) {
+            ApplyCombatWobble(displayFractions, time, 0.08f);
+            widthsAnimating = true;
+            hideLabels = true;
+        }
+
+        // New log detected: briefly fade the labels out while the parse runs.
+        float newLogTime = newLogDetectedTime.load();
+        if (newLogTime > 0.0f) {
+            float elapsed = time - newLogTime;
+            if (elapsed < 0.5f) hideLabels = true;
+            else newLogDetectedTime.store(0.0f);
+        }
+
+        float parseTime = parseCompleteTime.load();
+        if (parseTime > 0.0f) {
+            float elapsed = time - parseTime;
+            if (elapsed < 0.45f) hideLabels = true;
+            if (elapsed > 1.0f) parseCompleteTime.store(0.0f);
+        }
+
+        // --- Ease the segment widths toward their targets every frame ---
+        // A critically-damped spring (Unity-style SmoothDamp) per segment: it eases
+        // in AND out, follows a moving target without overshoot, and is frame-rate
+        // independent -- so ANY ratio change glides, not just the ones after a parse.
+        // (In combat the target is the wobble, so the wobble stays lively but smooth.)
+        if (smoothedFractions.size() != displayFractions.size()) {
+            // First frame / team-count changed: snap, don't animate from nothing.
+            smoothedFractions = displayFractions;
+            fractionVel.assign(displayFractions.size(), 0.0f);
+        }
+        else {
+            const float kSmoothTime = 0.40f; // ~time to settle; larger = lazier
+            float omega = 2.0f / kSmoothTime;
+            float omega_x = omega * dt;
+            float expFactor = 1.0f / (1.0f + omega_x + 0.48f * omega_x * omega_x + 0.235f * omega_x * omega_x * omega_x);
+            for (size_t i = 0; i < displayFractions.size(); ++i) {
+                float change = smoothedFractions[i] - displayFractions[i];
+                float temp = (fractionVel[i] + omega * change) * dt;
+                fractionVel[i] = (fractionVel[i] - omega * temp) * expFactor;
+                smoothedFractions[i] = displayFractions[i] + (change + temp) * expFactor;
+                if (fabsf(change) > 0.0008f || fabsf(fractionVel[i]) > 0.0008f) {
+                    widthsAnimating = true; // still moving -> draw sub-pixel for a clean glide
+                }
+            }
+            // Renormalise so the segments always exactly fill the bar width.
+            float sum = 0.0f;
+            for (float f : smoothedFractions) sum += f;
+            if (sum > 0.0f) {
+                for (float& f : smoothedFractions) f /= sum;
+            }
+        }
+        displayFractions = smoothedFractions;
+
+        // --- Ease the label alpha toward shown/hidden (a real cross-fade) ---
+        float targetAlpha = hideLabels ? 0.0f : 1.0f;
+        labelAlpha += (targetAlpha - labelAlpha) * (1.0f - expf(-dt / 0.12f));
+        if (labelAlpha < 0.0f) labelAlpha = 0.0f;
+        else if (labelAlpha > 1.0f) labelAlpha = 1.0f;
+
+        const float topY = y;
+
+        // Colours are drawn as-is (no brightness flash).
+        std::vector<ImU32> displayColors = baseColorsU32;
+
+        // --- Draw icon ---
         if (hasIcon)
         {
-            float iconBGWidth = iconAreaWidth + interPadding;
+            float iconBGWidth = iconAreaWidth + kInterPadding;
 
             draw_list->AddRectFilled(
-                ImVec2(x, y),
-                ImVec2(x + iconBGWidth, y + height),
+                ImVec2(x, topY),
+                ImVec2(x + iconBGWidth, topY + displayHeight),
                 IM_COL32(0, 0, 0, 230),
                 rounding,
                 ImDrawCornerFlags_Left
             );
 
-            const float iconX = x + leftPadding;
-            const float iconY = y + (height - iconHeight) * 0.5f;
+            const float iconX = x + kLeftPadding;
+            const float iconY = topY + (displayHeight - iconHeight) * 0.5f;
             draw_list->AddImage(
                 statIcon,
                 ImVec2(iconX, iconY),
@@ -608,13 +705,13 @@ namespace wvwfightanalysis::gui {
             );
         }
 
-        const float barWidth = width - ((hasIcon ? (iconAreaWidth + interPadding) : 0.0f));
+        const float barWidth = width - ((hasIcon ? (iconAreaWidth + kInterPadding) : 0.0f));
 
-        constexpr float kZeroThreshold = 0.0001f;
+        // Filter active (non-zero width) segments
         std::vector<size_t> activeIndices;
         activeIndices.reserve(numTeams);
         for (size_t i = 0; i < numTeams; ++i) {
-            if (fractions[i] * barWidth >= kZeroThreshold) {
+            if (displayFractions[i] * barWidth >= kZeroThreshold) {
                 activeIndices.push_back(i);
             }
         }
@@ -623,13 +720,18 @@ namespace wvwfightanalysis::gui {
         for (size_t j = 0; j < activeIndices.size(); ++j)
         {
             size_t idx = activeIndices[j];
-            float section_width = barWidth * fractions[idx];
+            float section_width = barWidth * displayFractions[idx];
             if (section_width < kZeroThreshold) {
                 continue;
             }
 
-            float x_start_rounded = IM_ROUND(x_start);
-            float x_end_rounded = IM_ROUND(x_start + section_width);
+            // While seams are sliding (value transition), draw at sub-pixel
+            // precision so the motion is smooth; when static, snap to whole
+            // pixels for crisp edges. Snapping a moving edge to integer pixels
+            // is what made the old transition look like it jittered.
+            float exact_end = x_start + section_width;
+            float seg_left  = widthsAnimating ? x_start   : IM_ROUND(x_start);
+            float seg_right = widthsAnimating ? exact_end : IM_ROUND(exact_end);
 
             int corners = 0;
             bool isFirst = (j == 0);
@@ -642,38 +744,88 @@ namespace wvwfightanalysis::gui {
                 corners |= ImDrawCornerFlags_Right;
             }
 
-            // Draw the colored rectangle
+            // Draw segment with 0.5px overlap to prevent gaps
             draw_list->AddRectFilled(
-                ImVec2(x_start_rounded, y),
-                ImVec2(x_end_rounded, y + height),
-                colorsU32[idx],
+                ImVec2(seg_left - 0.5f, topY),
+                ImVec2(seg_right + 0.5f, topY + displayHeight),
+                displayColors[idx],
                 rounding,
                 corners
             );
 
-            // Draw text if there's room
-            const ImVec2 textSize = ImGui::CalcTextSize(texts[idx]);
-            float sectionDrawWidth = x_end_rounded - x_start_rounded;
-            if (sectionDrawWidth >= textSize.x) {
-                float text_center_x = x_start_rounded + (sectionDrawWidth - textSize.x) * 0.5f + settings->textHorizontalAlignOffset;
-                float center_y = y + (height - textSize.y) * 0.5f + settings->textVerticalAlignOffset;
+            // Draw text if there's room. Alpha follows labelAlpha so the numbers
+            // cross-fade (out, swap, back in) instead of hard-cutting.
+            if (labelAlpha > 0.01f) {
+                const ImVec2 textSize = ImGui::CalcTextSize(texts[idx]);
+                float sectionDrawWidth = seg_right - seg_left;
+                if (sectionDrawWidth >= textSize.x) {
+                    float text_center_x = seg_left + (sectionDrawWidth - textSize.x) * 0.5f + settings->textHorizontalAlignOffset;
+                    float center_y = topY + (displayHeight - textSize.y) * 0.5f + settings->textVerticalAlignOffset;
 
-                size_t origTeam = teamIndices[j];
-                draw_list->AddText(
-                    ImVec2(text_center_x, center_y),
-                    ImGui::ColorConvertFloat4ToU32(textColors[origTeam]),
-                    texts[idx]
-                );
+                    // Drop shadow (alpha follows the label fade)
+                    draw_list->AddText(
+                        ImVec2(text_center_x + 2.0f, center_y + 2.0f),
+                        IM_COL32(0, 0, 0, static_cast<int>(180.0f * labelAlpha)),
+                        texts[idx]
+                    );
+
+                    // Main text (alpha follows the label fade)
+                    size_t origTeam = teamIndices[j];
+                    ImVec4 textCol = textColors[origTeam];
+                    textCol.w *= labelAlpha;
+                    draw_list->AddText(
+                        ImVec2(text_center_x, center_y),
+                        ImGui::ColorConvertFloat4ToU32(textCol),
+                        texts[idx]
+                    );
+                }
             }
 
-            x_start += section_width;
+            // Advance to next segment: exact while animating (no drift, smooth
+            // motion); rounded when static so neighbours share a pixel boundary.
+            x_start = widthsAnimating ? exact_end : seg_right;
+        }
+
+        // In-combat shimmer: a soft highlight sweeps left->right across the bar.
+        // This is the bar's analog of the pie's gentle rotation -- motion that
+        // makes the widget feel alive without resizing the segments (which jitters).
+        if (inCombat) {
+            const float kShimmerPeriod = 3.0f;   // full cycle length (seconds)
+            const float kSweepFraction = 0.6f;   // sweep for 60% of the cycle, then rest
+            float phase = fmodf(time, kShimmerPeriod) / kShimmerPeriod;
+            if (phase < kSweepFraction) {
+                float sweep = phase / kSweepFraction;                 // 0..1 across the bar
+                float half = barWidth * 0.18f;                        // soft band half-width
+                float centerX = barX - half + (barWidth + 2.0f * half) * sweep;
+                float edge = sinf(sweep * 3.14159265358979323846f);   // 0 at the ends -> no pop
+                int peakA = static_cast<int>(70.0f * edge);
+                if (peakA > 0) {
+                    ImU32 bright = IM_COL32(255, 255, 255, peakA);
+                    ImU32 clear  = IM_COL32(255, 255, 255, 0);
+                    draw_list->PushClipRect(
+                        ImVec2(barX, topY),
+                        ImVec2(barX + barWidth, topY + displayHeight),
+                        true);
+                    // Left half of the band: transparent -> bright
+                    draw_list->AddRectFilledMultiColor(
+                        ImVec2(centerX - half, topY),
+                        ImVec2(centerX, topY + displayHeight),
+                        clear, bright, bright, clear);
+                    // Right half of the band: bright -> transparent
+                    draw_list->AddRectFilledMultiColor(
+                        ImVec2(centerX, topY),
+                        ImVec2(centerX + half, topY + displayHeight),
+                        bright, clear, clear, bright);
+                    draw_list->PopClipRect();
+                }
+            }
         }
 
         // Optional: draw a border around the entire widget
         if (settings->widgetBorderThickness > 0.0f) {
             draw_list->AddRect(
-                ImVec2(x, y),
-                ImVec2(x + width, y + height),
+                ImVec2(x, topY),
+                ImVec2(x + width, topY + displayHeight),
                 ImGui::ColorConvertFloat4ToU32(settings->colors.widgetBorder),
                 rounding,
                 ImDrawCornerFlags_All,
@@ -681,8 +833,9 @@ namespace wvwfightanalysis::gui {
             );
         }
 
-        // Reserve the layout space so ImGui doesn't overlap subsequent items
-        ImGui::Dummy(size);
+        // Reserve the BASE layout height so the centre-growing height pulse
+        // overflows symmetrically instead of shoving later items around.
+        ImGui::Dummy(ImVec2(width, baseHeight));
         ImGui::PopFont();
 
     }
@@ -756,35 +909,8 @@ namespace wvwfightanalysis::gui {
         wasInCombat = inCombat;
 
         if (inCombat) {
-            // Apply sine wave variations directly (no ImAnimate smoothing needed)
-            for (size_t i = 0; i < ratios.size(); ++i) {
-                // Each slice gets a different phase offset and frequency (slower now)
-                float frequency = 0.5f + (i * 0.15f); // Slower speeds for each slice
-                float phase = i * 2.0f; // Different starting points
-
-                // Large variation: ±30% of the slice's value
-                float variation = sinf(time * frequency + phase) * 0.3f;
-                displayRatios[i] = ratios[i] * (1.0f + variation);
-
-                // Ensure no negative values
-                if (displayRatios[i] < 0.0f) displayRatios[i] = 0.0f;
-            }
-
-            // Normalize animated ratios to ensure they sum to 1.0
-            // This ensures slices always fill the entire circle with no gaps
-            float animatedTotal = 0.0f;
-            for (float ratio : displayRatios) {
-                animatedTotal += ratio;
-            }
-            if (animatedTotal > 0.0f) {
-                for (size_t i = 0; i < displayRatios.size(); ++i) {
-                    displayRatios[i] = displayRatios[i] / animatedTotal;
-                }
-            }
-
-            // Add global rotation to make it appear to grow/shrink from all sides
-            // Slow rotation that cycles through different starting angles
-            globalRotation = sinf(time * 0.3f) * 0.5f; // Oscillate ±0.5 radians (~±28 degrees)
+            ApplyCombatWobble(displayRatios, time, 0.3f);
+            globalRotation = sinf(time * 0.3f) * 0.5f;
         }
 
         // Determine chart size (window is already square from pieChartSize setting)

@@ -114,7 +114,7 @@
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)include;$(ProjectDir)imgui;$(ProjectDir)mumble;$(ProjectDir)nexus;$(ProjectDir)include\thirdparty;$(ProjectDir)include\thirdparty\imgui_positioning;$(ProjectDir)include\thirdparty\ImAnimate;$(SolutionDir)packages\nlohmann.json.3.11.3\build\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)include;$(ProjectDir)imgui;$(ProjectDir)mumble;$(ProjectDir)nexus;$(ProjectDir)include\thirdparty;$(ProjectDir)include\thirdparty\imgui_positioning;$(SolutionDir)packages\nlohmann.json.3.11.3\build\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -133,7 +133,7 @@
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)include;$(ProjectDir)imgui;$(ProjectDir)mumble;$(ProjectDir)nexus;$(ProjectDir)include\thirdparty;$(ProjectDir)include\thirdparty\imgui_positioning;$(ProjectDir)include\thirdparty\ImAnimate;$(SolutionDir)packages\nlohmann.json.3.11.3\build\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)include;$(ProjectDir)imgui;$(ProjectDir)mumble;$(ProjectDir)nexus;$(ProjectDir)include\thirdparty;$(ProjectDir)include\thirdparty\imgui_positioning;$(SolutionDir)packages\nlohmann.json.3.11.3\build\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -154,7 +154,7 @@
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)include;$(ProjectDir)imgui;$(ProjectDir)mumble;$(ProjectDir)nexus;$(ProjectDir)include\thirdparty;$(ProjectDir)include\thirdparty\imgui_positioning;$(ProjectDir)include\thirdparty\ImAnimate;$(SolutionDir)packages\nlohmann.json.3.11.3\build\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)include;$(ProjectDir)imgui;$(ProjectDir)mumble;$(ProjectDir)nexus;$(ProjectDir)include\thirdparty;$(ProjectDir)include\thirdparty\imgui_positioning;$(SolutionDir)packages\nlohmann.json.3.11.3\build\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -177,7 +177,7 @@
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)include;$(ProjectDir)imgui;$(ProjectDir)mumble;$(ProjectDir)nexus;$(ProjectDir)include\thirdparty;$(ProjectDir)include\thirdparty\imgui_positioning;$(ProjectDir)include\thirdparty\ImAnimate;$(SolutionDir)packages\nlohmann.json.3.11.3\build\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)include;$(ProjectDir)imgui;$(ProjectDir)mumble;$(ProjectDir)nexus;$(ProjectDir)include\thirdparty;$(ProjectDir)include\thirdparty\imgui_positioning;$(SolutionDir)packages\nlohmann.json.3.11.3\build\native\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -204,7 +204,6 @@
     <ClInclude Include="include\settings\Settings.h" />
     <ClInclude Include="include\shared\Shared.h" />
     <ClInclude Include="include\utils\Utils.h" />
-    <ClInclude Include="include\thirdparty\ImAnimate\ImAnimate.h" />
     <ClInclude Include="imgui\imconfig.h" />
     <ClInclude Include="imgui\imgui.h" />
     <ClInclude Include="imgui\imgui_internal.h" />
@@ -247,7 +246,6 @@
       <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">CompileAsC</CompileAs>
       <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">CompileAsC</CompileAs>
     </ClCompile>
-    <ClCompile Include="include\thirdparty\ImAnimate\ImAnimate.cpp" />
     <ClCompile Include="src\gui\BarTemplate.cpp" />
     <ClCompile Include="src\gui\PieChart.cpp" />
     <ClCompile Include="src\gui\WindowRenderer.cpp" />
