@@ -17,6 +17,7 @@
 
 std::unordered_set<std::wstring> processedFiles;
 std::filesystem::file_time_type maxProcessedTime = std::filesystem::file_time_type::min();
+bool flatLogMode = false;
 
 bool shouldSkipLog(const ParsedLog& log);
 
@@ -664,6 +665,10 @@ bool isValidEVTCFile(const std::filesystem::path& dirPath, const std::filesystem
 		return false;
 	}
 
+	if (flatLogMode) {
+		return relativePath == ".";
+	}
+
 	bool dirPathIsWvW = dirPath.filename().string().find("WvW") != std::string::npos;
 	bool dirPathIs1 = dirPath.filename().string() == "1";
 
@@ -1041,6 +1046,15 @@ void monitorDirectory(size_t numLogsToParse, size_t pollIntervalMilliseconds)
 	try
 	{
 		std::filesystem::path dirPath;
+
+		flatLogMode = (getBossEncounterNpcDirs() == 0);
+		if (flatLogMode)
+		{
+			APIDefs->Log(ELogLevel_WARNING, ADDON_NAME,
+				"ArcDPS 'boss_encounter_npc_dirs' is disabled: logs are stored flat in arcdps.cbtlogs. "
+				"Parsing all logs and filtering WvW fights by fight ID. For better performance, enable "
+				"boss encounter directory sorting in ArcDPS.");
+		}
 
 		if (firstInstall) {
 

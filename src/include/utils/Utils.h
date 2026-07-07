@@ -17,6 +17,7 @@ ImVec4 GetTeamColor(const std::string& teamName);
 void initMaps();
 void waitForFile(const std::string& filePath);
 std::filesystem::path getArcPath();
+int getBossEncounterNpcDirs();
 
 Texture** getTextureInfo(const std::string& eliteSpec, int* outResourceId);
 void InvalidateProfessionIconTextures();

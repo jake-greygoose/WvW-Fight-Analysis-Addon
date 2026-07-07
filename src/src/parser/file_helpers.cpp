@@ -196,6 +196,19 @@ std::filesystem::path getArcPath()
     return boss_encounter_path;
 }
 
+int getBossEncounterNpcDirs()
+{
+    std::filesystem::path filename = APIDefs->Paths.GetAddonDirectory("arcdps\\arcdps.ini");
+    std::string utf8Filename = getUtf8Path(filename);
+
+    return GetPrivateProfileIntA(
+        "session",
+        "boss_encounter_npc_dirs",
+        1,
+        utf8Filename.c_str()
+    );
+}
+
 // File system monitoring implementations
 bool isRunningUnderWine()
 {

@@ -57,9 +57,6 @@ set(PROJECT_SOURCES
     src/include/thirdparty/miniz_tdef.c
     src/include/thirdparty/miniz_tinfl.c
     src/include/thirdparty/miniz_zip.c
-
-    # ImAnimate
-    src/include/thirdparty/ImAnimate/ImAnimate.cpp
 )
 
 # Resource files (Windows only)
@@ -85,7 +82,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/nexus
     ${CMAKE_SOURCE_DIR}/src/include/thirdparty
     ${CMAKE_SOURCE_DIR}/src/include/thirdparty/imgui_positioning
-    ${CMAKE_SOURCE_DIR}/src/include/thirdparty/ImAnimate
 )
 
 # Compiler definitions

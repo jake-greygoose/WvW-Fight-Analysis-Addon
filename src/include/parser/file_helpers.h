@@ -21,6 +21,7 @@ void waitForFile(const std::filesystem::path& filePath);
 void waitForFile(const std::string& filePath);
 std::wstring getCanonicalPath(const std::filesystem::path& path);
 std::filesystem::path getArcPath();
+int getBossEncounterNpcDirs();
 bool isValidEVTCFile(const std::filesystem::path& dirPath, const std::filesystem::path& filePath);
 
 // Directory monitoring
