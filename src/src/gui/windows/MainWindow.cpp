@@ -118,7 +118,22 @@ namespace wvwfightanalysis::gui {
             return;
         }
 
-        if (parsedLogs.empty()) {
+        // Snapshot the current log under the lock: the parser thread mutates
+        // parsedLogs whenever a new log lands, and teams[] keeps pointers into
+        // this data for the rest of the frame.
+        bool haveLogData = false;
+        ParsedLog currentLog;
+        {
+            std::lock_guard<std::mutex> lock(parsedLogsMutex);
+            if (!parsedLogs.empty()) {
+                if (currentLogIndex < 0 || currentLogIndex >= static_cast<int>(parsedLogs.size()))
+                    currentLogIndex = 0;
+                currentLog = parsedLogs[currentLogIndex];
+                haveLogData = true;
+            }
+        }
+
+        if (!haveLogData) {
             ImGui::Text(initialParsingComplete ? "No logs parsed yet." : "Parsing logs...");
             ImGui::End();
             if (pushedTitleStyle)
@@ -129,7 +144,6 @@ namespace wvwfightanalysis::gui {
         // --- Render window content ---
         // (The rest of your rendering code remains unchanged.)
         // The current log and its data:
-        const auto& currentLog = parsedLogs[currentLogIndex];
         const auto& currentLogData = currentLog.data;
 
         // Optionally display the log name.
@@ -608,7 +622,12 @@ namespace wvwfightanalysis::gui {
         HINSTANCE hSelf)
     {
         // 1) Identify the current log filename
-        const std::string& currentLogFilename = parsedLogs[currentLogIndex].filename;
+        std::string currentLogFilename;
+        {
+            std::lock_guard<std::mutex> lock(parsedLogsMutex);
+            if (currentLogIndex >= 0 && currentLogIndex < static_cast<int>(parsedLogs.size()))
+                currentLogFilename = parsedLogs[currentLogIndex].filename;
+        }
 
         // Decide if we use squad stats
         const bool useSquadStats = (settings->squadPlayersOnly && teamData.isPOVTeam);

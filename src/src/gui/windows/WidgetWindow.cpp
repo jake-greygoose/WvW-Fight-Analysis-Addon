@@ -57,11 +57,25 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
         window_flags |= ImGuiExt::UpdatePosition(windowName);
 
         if (ImGui::Begin(windowName.c_str(), &settings->isEnabled, window_flags)) {
-            if (parsedLogs.empty()) {
+            // Snapshot the current log under the lock: the parser thread mutates
+            // parsedLogs whenever a new log lands, so we must not hold references
+            // into the deque while rendering.
+            bool haveLogData = false;
+            ParsedData currentLogData;
+            {
+                std::lock_guard<std::mutex> lock(parsedLogsMutex);
+                if (!parsedLogs.empty()) {
+                    if (currentLogIndex < 0 || currentLogIndex >= static_cast<int>(parsedLogs.size()))
+                        currentLogIndex = 0;
+                    currentLogData = parsedLogs[currentLogIndex].data;
+                    haveLogData = true;
+                }
+            }
+
+            if (!haveLogData) {
                 ImGui::Text(initialParsingComplete ? "No logs parsed yet." : "Parsing logs...");
             }
             else {
-                const auto& currentLogData = parsedLogs[currentLogIndex].data;
                 const std::vector<std::string> team_names = { "Red", "Blue", "Green" };
 
                 // Original team background colors (non-combat)

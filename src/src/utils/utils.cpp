@@ -580,6 +580,7 @@ void ProcessKeybinds(const char* aIdentifier, bool aIsRelease) {
         Settings::Save(SettingsPath);
     }
     else if (str == "LOG_INDEX_DOWN") {
+        std::lock_guard<std::mutex> lock(parsedLogsMutex);
         if (!parsedLogs.empty()) {
             if (currentLogIndex == 0) {
                 currentLogIndex = static_cast<int>(parsedLogs.size()) - 1;
@@ -594,6 +595,7 @@ void ProcessKeybinds(const char* aIdentifier, bool aIsRelease) {
         }
     }
     else if (str == "LOG_INDEX_UP") {
+        std::lock_guard<std::mutex> lock(parsedLogsMutex);
         if (!parsedLogs.empty()) {
             currentLogIndex = (currentLogIndex + 1) % static_cast<int>(parsedLogs.size());
         }
@@ -618,6 +620,7 @@ void ProcessKeybinds(const char* aIdentifier, bool aIsRelease) {
 
 void RenderHistoryMenu() {
     if (ImGui::BeginMenu("History")) {
+        std::lock_guard<std::mutex> lock(parsedLogsMutex);
         for (int i = 0; i < parsedLogs.size(); ++i) {
             const auto& log = parsedLogs[i];
             const std::string fnstr = log.filename.substr(0, log.filename.find_last_of('.'));

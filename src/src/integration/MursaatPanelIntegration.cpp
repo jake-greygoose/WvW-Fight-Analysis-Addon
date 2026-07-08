@@ -22,14 +22,24 @@ static ImVec4 GetMursaatWidgetTeamColor(const std::string& teamName) {
 
 // Function to render the WvW widget
 void RenderWvWWidget(RenderOptions options) {
-    // Make sure we have logs to display
-    if (parsedLogs.empty()) {
+    // Snapshot the current log under the lock: the parser thread mutates
+    // parsedLogs whenever a new log lands.
+    bool haveLogData = false;
+    ParsedData currentLogData;
+    {
+        std::lock_guard<std::mutex> lock(parsedLogsMutex);
+        if (!parsedLogs.empty()) {
+            if (currentLogIndex < 0 || currentLogIndex >= static_cast<int>(parsedLogs.size()))
+                currentLogIndex = 0;
+            currentLogData = parsedLogs[currentLogIndex].data;
+            haveLogData = true;
+        }
+    }
+
+    if (!haveLogData) {
         ImGui::Text("No WvW logs");
         return;
     }
-
-    // Get the current log data
-    const auto& currentLogData = parsedLogs[currentLogIndex].data;
 
     // Find Green, Red, and Blue teams
     int greenCount = 0;
