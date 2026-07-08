@@ -26,10 +26,9 @@ bool isValidEVTCFile(const std::filesystem::path& dirPath, const std::filesystem
 
 // Directory monitoring
 void monitorDirectory(size_t numLogsToParse, size_t pollIntervalMilliseconds);
-void directoryMonitor(const std::filesystem::path& dirPath, size_t numLogsToParse);
 void scanForNewFiles(const std::filesystem::path& dirPath, std::unordered_set<std::wstring>& processedFiles);
 void parseInitialLogs(std::unordered_set<std::wstring>& processedFiles, size_t numLogsToParse);
 bool isRunningUnderWine();
 
 void processEVTCFile(const std::filesystem::path& filePath);
-ParsedData parseEVTCFile(const std::string& utf8FilePath);
+ParsedData parseEVTCFile(const std::filesystem::path& filePath);

@@ -32,6 +32,7 @@ set(PROJECT_SOURCES
     # Parser
     src/src/parser/boon_strip_skills.cpp
     src/src/parser/boon_strip_tracker.cpp
+    src/src/parser/directory_monitor.cpp
     src/src/parser/evtc_parser.cpp
     src/src/parser/file_helpers.cpp
     src/src/parser/statistics_helper.cpp

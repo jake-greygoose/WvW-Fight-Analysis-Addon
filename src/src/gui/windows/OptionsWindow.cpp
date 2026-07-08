@@ -124,7 +124,7 @@ namespace wvwfightanalysis::gui {
                     Settings::Save(SettingsPath);
                 }
                 if (ImGui::IsItemHovered()) {
-                    ImGui::SetTooltip("Wine/Proton doesn't support ReadDirectoryChangesW, use directory polling instead.");
+                    ImGui::SetTooltip("Force directory polling instead of change notifications. Enable this only if new logs aren't being detected (rare).");
                 }
 
                 if (Settings::forceLinuxCompatibilityMode) {
