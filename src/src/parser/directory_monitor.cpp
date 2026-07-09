@@ -20,7 +20,7 @@ std::unordered_set<std::wstring> processedFiles;
 std::filesystem::file_time_type maxProcessedTime = std::filesystem::file_time_type::min();
 static bool flatLogMode = false;
 
-static bool shouldSkipLog(const ParsedLog& log);
+static bool shouldSkipLog(const ParsedLog& log, const ParserSettingsSnapshot& settings);
 
 bool isValidEVTCFile(const std::filesystem::path& dirPath, const std::filesystem::path& filePath)
 {
@@ -92,10 +92,11 @@ void parseInitialLogs(std::unordered_set<std::wstring>& processedFiles, size_t n
 {
 	try
 	{
+		ParserSettingsSnapshot settings = Settings::GetParserSettingsSnapshot();
 		std::filesystem::path dirPath;
-		if (!Settings::LogDirectoryPath.empty())
+		if (!settings.logDirectoryPath.empty())
 		{
-			dirPath = std::filesystem::path(Settings::LogDirectoryPath);
+			dirPath = std::filesystem::path(settings.logDirectoryPath);
 			APIDefs->Log(ELogLevel_INFO, ADDON_NAME,
 				("Custom log path specified: " + dirPath.string()).c_str());
 			if (!std::filesystem::exists(dirPath) || !std::filesystem::is_directory(dirPath))
@@ -160,9 +161,9 @@ void parseInitialLogs(std::unordered_set<std::wstring>& processedFiles, size_t n
 			{
 				ParsedLog log;
 				log.filename = getUtf8Path(filePath.filename());
-				log.data = parseEVTCFile(filePath);
+				log.data = parseEVTCFile(filePath, settings);
 
-				if (shouldSkipLog(log))
+				if (shouldSkipLog(log, settings))
 				{
 					continue;
 				}
@@ -171,11 +172,12 @@ void parseInitialLogs(std::unordered_set<std::wstring>& processedFiles, size_t n
 					std::lock_guard<std::mutex> lock(parsedLogsMutex);
 					parsedLogs.push_back(log);
 
-					while (parsedLogs.size() > Settings::logHistorySize)
+					while (parsedLogs.size() > settings.logHistorySize)
 					{
 						parsedLogs.pop_back();
 					}
 					currentLogIndex = 0;
+					parsedLogsRevision.fetch_add(1, std::memory_order_relaxed);
 				}
 
 				processedFiles.insert(absolutePath);
@@ -281,19 +283,22 @@ void monitorDirectory(size_t numLogsToParse, size_t pollIntervalMilliseconds)
 		if (firstInstall) {
 
 			std::filesystem::path arcPath = getArcPath();
-			Settings::LogDirectoryPath = arcPath.string();
-
-			strncpy(Settings::LogDirectoryPathC, Settings::LogDirectoryPath.c_str(), sizeof(Settings::LogDirectoryPathC) - 1);
-			Settings::LogDirectoryPathC[sizeof(Settings::LogDirectoryPathC) - 1] = '\0';
-
-			Settings::Settings[CUSTOM_LOG_PATH] = Settings::LogDirectoryPath;
+			std::string arcPathString = arcPath.string();
+			{
+				std::lock_guard<std::mutex> lock(Settings::Mutex);
+				Settings::LogDirectoryPath = arcPathString;
+				strncpy(Settings::LogDirectoryPathC, Settings::LogDirectoryPath.c_str(), sizeof(Settings::LogDirectoryPathC) - 1);
+				Settings::LogDirectoryPathC[sizeof(Settings::LogDirectoryPathC) - 1] = '\0';
+				Settings::Settings[CUSTOM_LOG_PATH] = Settings::LogDirectoryPath;
+			}
 			Settings::Save(SettingsPath);
 		}
 
+		ParserSettingsSnapshot settings = Settings::GetParserSettingsSnapshot();
 
-		if (!Settings::LogDirectoryPath.empty())
+		if (!settings.logDirectoryPath.empty())
 		{
-			dirPath = std::filesystem::path(Settings::LogDirectoryPath);
+			dirPath = std::filesystem::path(settings.logDirectoryPath);
 
 			if (!std::filesystem::exists(dirPath) || !std::filesystem::is_directory(dirPath))
 			{
@@ -319,7 +324,7 @@ void monitorDirectory(size_t numLogsToParse, size_t pollIntervalMilliseconds)
 		parseInitialLogs(processedFiles, numLogsToParse);
 
 		// Manual pure-polling fallback (e.g. change notifications misbehaving).
-		if (Settings::forceLinuxCompatibilityMode)
+		if (settings.forceLinuxCompatibilityMode)
 		{
 			APIDefs->Log(ELogLevel_INFO, ADDON_NAME,
 				"Compatibility mode enabled: using polling for directory monitoring.");
@@ -413,7 +418,7 @@ void monitorDirectory(size_t numLogsToParse, size_t pollIntervalMilliseconds)
 	}
 }
 
-static bool shouldSkipLog(const ParsedLog& log)
+static bool shouldSkipLog(const ParsedLog& log, const ParserSettingsSnapshot& settings)
 {
 	if (log.data.fightId != 1)
 	{
@@ -423,7 +428,7 @@ static bool shouldSkipLog(const ParsedLog& log)
 
 	if (log.data.totalIdentifiedPlayers == 0)
 	{
-		if (Settings::debugStringsMode) {
+		if (settings.debugStringsMode) {
 			size_t teamCount = log.data.teamStats.size();
 			std::string teamInfo = "Teams found: " + std::to_string(teamCount);
 			for (const auto& [teamName, stats] : log.data.teamStats) {
@@ -437,14 +442,14 @@ static bool shouldSkipLog(const ParsedLog& log)
 		return true;
 	}
 
-	if (Settings::minTotalPlayers > 0 && log.data.totalIdentifiedPlayers < (size_t)Settings::minTotalPlayers)
+	if (settings.minTotalPlayers > 0 && log.data.totalIdentifiedPlayers < (size_t)settings.minTotalPlayers)
 	{
 		APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
-			("Skipping log below min total players (" + std::to_string(Settings::minTotalPlayers) + "): " + log.filename + " (" + std::to_string(log.data.totalIdentifiedPlayers) + " players)").c_str());
+			("Skipping log below min total players (" + std::to_string(settings.minTotalPlayers) + "): " + log.filename + " (" + std::to_string(log.data.totalIdentifiedPlayers) + " players)").c_str());
 		return true;
 	}
 
-	if (Settings::minTotalDeaths > 0 || Settings::minTotalDowns > 0)
+	if (settings.minTotalDeaths > 0 || settings.minTotalDowns > 0)
 	{
 		uint32_t totalDeaths = 0;
 		uint32_t totalDowns = 0;
@@ -454,28 +459,28 @@ static bool shouldSkipLog(const ParsedLog& log)
 			totalDowns += stats.totalDowned;
 		}
 
-		if (Settings::minTotalDeaths > 0 && totalDeaths < (uint32_t)Settings::minTotalDeaths)
+		if (settings.minTotalDeaths > 0 && totalDeaths < (uint32_t)settings.minTotalDeaths)
 		{
 			APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
-				("Skipping log below min total deaths (" + std::to_string(Settings::minTotalDeaths) + "): " + log.filename + " (" + std::to_string(totalDeaths) + " deaths)").c_str());
+				("Skipping log below min total deaths (" + std::to_string(settings.minTotalDeaths) + "): " + log.filename + " (" + std::to_string(totalDeaths) + " deaths)").c_str());
 			return true;
 		}
 
-		if (Settings::minTotalDowns > 0 && totalDowns < (uint32_t)Settings::minTotalDowns)
+		if (settings.minTotalDowns > 0 && totalDowns < (uint32_t)settings.minTotalDowns)
 		{
 			APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
-				("Skipping log below min total downs (" + std::to_string(Settings::minTotalDowns) + "): " + log.filename + " (" + std::to_string(totalDowns) + " downs)").c_str());
+				("Skipping log below min total downs (" + std::to_string(settings.minTotalDowns) + "): " + log.filename + " (" + std::to_string(totalDowns) + " downs)").c_str());
 			return true;
 		}
 	}
 
-	if (Settings::minCombatDuration > 0)
+	if (settings.minCombatDuration > 0)
 	{
 		double durationSec = log.data.getCombatDurationSeconds();
-		if (durationSec < Settings::minCombatDuration)
+		if (durationSec < settings.minCombatDuration)
 		{
 			APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
-				("Skipping log below min combat duration (" + std::to_string(Settings::minCombatDuration) + "s): " + log.filename + " (" + std::to_string(durationSec) + "s)").c_str());
+				("Skipping log below min combat duration (" + std::to_string(settings.minCombatDuration) + "s): " + log.filename + " (" + std::to_string(durationSec) + "s)").c_str());
 			return true;
 		}
 	}
@@ -487,14 +492,14 @@ void processNewEVTCFile(const std::filesystem::path& filePath)
 {
 	std::string filename = getUtf8Path(filePath.filename());
 
-	// Trigger "new log detected" animation
-	newLogDetectedTime.store(static_cast<float>(ImGui::GetTime()));
+	newLogDetectedTime.store(-1.0f);
 
 	ParsedLog log;
 	log.filename = filename;
-	log.data = parseEVTCFile(filePath);
+	ParserSettingsSnapshot settings = Settings::GetParserSettingsSnapshot();
+	log.data = parseEVTCFile(filePath, settings);
 
-	if (shouldSkipLog(log))
+	if (shouldSkipLog(log, settings))
 	{
 		return;
 	}
@@ -503,19 +508,24 @@ void processNewEVTCFile(const std::filesystem::path& filePath)
 		std::lock_guard<std::mutex> lock(parsedLogsMutex);
 		parsedLogs.push_front(log);
 
-		while (parsedLogs.size() > Settings::logHistorySize)
+		while (parsedLogs.size() > settings.logHistorySize)
 		{
 			parsedLogs.pop_back();
 		}
 
 		currentLogIndex = 0;
+		parsedLogsRevision.fetch_add(1, std::memory_order_relaxed);
 	}
 
 	{
 		std::lock_guard<std::mutex> lock(aggregateStatsMutex);
 
 		// Update total combat time
-		uint64_t fightDuration = (log.data.combatEndTime - log.data.combatStartTime);
+		uint64_t fightDuration = 0;
+		if (log.data.combatEndTime > log.data.combatStartTime)
+		{
+			fightDuration = log.data.combatEndTime - log.data.combatStartTime;
+		}
 		globalAggregateStats.totalCombatTime += fightDuration;
 		globalAggregateStats.combatInstanceCount++;
 
@@ -578,13 +588,12 @@ void processNewEVTCFile(const std::filesystem::path& filePath)
 		}
 	}
 
-	if (Settings::showNewParseAlert) {
+	if (settings.showNewParseAlert) {
 		std::string displayName = generateLogDisplayName(log.filename, log.data.combatStartTime, log.data.combatEndTime);
 		APIDefs->UI.SendAlert(("Parsed New Log: " + displayName).c_str());
 	}
 
-	// Trigger "parsing complete" animation
-	parseCompleteTime.store(static_cast<float>(ImGui::GetTime()));
+	parseCompleteTime.store(-1.0f);
 
 	LogParsedEventArgs args{log.filename.c_str(), &log.data};
 	APIDefs->Events.Raise(EV_LOG_PARSED, &args);

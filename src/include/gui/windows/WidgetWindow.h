@@ -24,7 +24,17 @@ namespace wvwfightanalysis::gui {
             float labelAlpha = 1.0f;
         };
 
+        struct PieAnimState {
+            std::vector<float> previousRatios;
+            std::vector<float> targetRatios;
+            float transitionStartTime = 0.0f;
+            bool  wasInCombat = false;
+            float leftCombatTime = 0.0f;
+            float enteredCombatTime = 0.0f;
+        };
+
         std::unordered_map<const WidgetWindowSettings*, BarAnimState> m_barAnimStates;
+        std::unordered_map<const WidgetWindowSettings*, PieAnimState> m_pieAnimStates;
 
         ImTextureID GetStatIcon(const WidgetWindowSettings* settings);
         void RenderSettingsPopup(WidgetWindowSettings* settings);

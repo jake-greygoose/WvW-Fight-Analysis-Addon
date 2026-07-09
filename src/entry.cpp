@@ -120,7 +120,8 @@ void AddonLoad(AddonAPI* aApi) {
     for (const auto& kb : kKeybinds) {
         APIDefs->InputBinds.RegisterWithString(kb, ProcessKeybinds, "(null)");
     }
-    directoryMonitorThread = std::thread(monitorDirectory, Settings::logHistorySize, Settings::pollIntervalMilliseconds);
+    ParserSettingsSnapshot parserSettings = Settings::GetParserSettingsSnapshot();
+    directoryMonitorThread = std::thread(monitorDirectory, parserSettings.logHistorySize, parserSettings.pollIntervalMilliseconds);
     
     InitializeMursaatPanelIntegration();
     
@@ -170,6 +171,7 @@ void AddonUnload() {
     }
     
     CleanupMursaatPanelIntegration();
+    Settings::FlushPendingSave(SettingsPath, true);
     APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME, "Addon unloaded successfully.");
 }
 
@@ -177,6 +179,7 @@ void AddonRender() {
     if (g_windowRenderer) {
         g_windowRenderer->RenderAllWindows(hSelf);
     }
+    Settings::FlushPendingSave(SettingsPath);
 }
 
 void AddonOptions()
@@ -184,6 +187,7 @@ void AddonOptions()
     if (g_optionsWindow) {
         g_optionsWindow->Render();
     }
+    Settings::FlushPendingSave(SettingsPath);
 }
 
 extern "C" __declspec(dllexport) AddonDefinition * GetAddonDef()

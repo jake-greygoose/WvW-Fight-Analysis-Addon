@@ -49,8 +49,10 @@ std::unordered_map<uint64_t, AgentState> preProcessAgentStates(const std::vector
 			state.deathIntervals.emplace_back(event.time, UINT64_MAX);
 		}
 		else if (event.isStateChange == static_cast<uint8_t>(StateChange::HealthUpdate)) {
-			float healthPercent = (event.dstAgent * 100.0f) / event.value;
-			state.healthUpdates.emplace_back(event.time, healthPercent);
+			if (event.value > 0) {
+				float healthPercent = (event.dstAgent * 100.0f) / event.value;
+				state.healthUpdates.emplace_back(event.time, healthPercent);
+			}
 		}
 	}
 
@@ -180,7 +182,8 @@ static const std::unordered_map<std::string, std::string> WVW_TEAM_COLOR_GUIDS =
 void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eventCount,
 	std::unordered_map<uint64_t, Agent>& agentsByAddress,
 	std::unordered_map<uint16_t, Agent*>& playersBySrcInstid,
-	ParsedData& result) {
+	ParsedData& result,
+	const ParserSettingsSnapshot& settings) {
 
 	uint64_t logStartTime = UINT64_MAX;
 	uint64_t logEndTime = 0;
@@ -274,12 +277,12 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 				if (gitc != teamIdToColor.end()) {
 					teamName = gitc->second;
 				} else {
-					auto it = Settings::teamIDs.find(teamID);
-					if (it != Settings::teamIDs.end())
+					auto it = settings.teamIDs.find(teamID);
+					if (it != settings.teamIDs.end())
 						teamName = it->second;
 				}
 
-				if (Settings::debugStringsMode) {
+				if (settings.debugStringsMode) {
 					std::string agentInfo = agent.name.empty() ? agent.accountName : agent.name;
 					if (agentInfo.empty()) agentInfo = "Unknown Agent";
 					if (!teamName.empty()) {
@@ -484,7 +487,7 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 		}
 	}
 
-	if (Settings::debugStringsMode) {
+	if (settings.debugStringsMode) {
 		APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
 			("playersBySrcInstid total entries: " + std::to_string(playersBySrcInstid.size())).c_str());
 		for (const auto& [instid, agent] : playersBySrcInstid) {
@@ -525,7 +528,7 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 		specStats.count++;
 		result.totalIdentifiedPlayers++;
 
-		if (Settings::debugStringsMode) {
+		if (settings.debugStringsMode) {
 			APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
 				("COUNT: addr=" + std::to_string(addr) +
 				 " squad=" + std::to_string(isSquad) +
@@ -541,7 +544,7 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 		}
 	}
 
-	if (Settings::debugStringsMode) {
+	if (settings.debugStringsMode) {
 		for (const auto& [teamName, stats] : result.teamStats) {
 			APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
 				("FINAL: team=" + teamName + " totalPlayers=" + std::to_string(stats.totalPlayers)).c_str());
@@ -549,7 +552,7 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 	}
 }
 
-ParsedData parseEVTCFile(const std::filesystem::path& filePath) {
+ParsedData parseEVTCFile(const std::filesystem::path& filePath, const ParserSettingsSnapshot& settings) {
 	ParsedData result;
 	std::vector<char> bytes = extractZipFile(filePath);
 	if (bytes.size() < 16) {
@@ -639,7 +642,7 @@ ParsedData parseEVTCFile(const std::filesystem::path& filePath) {
 
 	// Process combat events
 	std::unordered_map<uint16_t, Agent*> playersBySrcInstid;
-	parseCombatEvents(bytes, offset, eventCount, agentsByAddress, playersBySrcInstid, result);
+	parseCombatEvents(bytes, offset, eventCount, agentsByAddress, playersBySrcInstid, result, settings);
 
 	return result;
 }

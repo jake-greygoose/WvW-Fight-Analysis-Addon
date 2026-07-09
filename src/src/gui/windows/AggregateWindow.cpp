@@ -32,18 +32,15 @@ namespace wvwfightanalysis::gui {
         if (settings->disableMoving) window_flags |= ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize;
         if (settings->disableClicking) window_flags |= ImGuiWindowFlags_NoInputs;
 
-        // Update positioning from imgui_positioning library
-        // Note: Don't call SetNextWindowPos/Size as it conflicts with imgui_positioning
         window_flags |= ImGuiExt::UpdatePosition(windowName);
 
-        // Only set default size on first use (position is handled by imgui_positioning)
-        ImGui::SetNextWindowSize(settings->size, ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(450, 350), ImGuiCond_FirstUseEver);
 
         bool windowOpen = ImGui::Begin(windowName.c_str(), &settings->isEnabled, window_flags);
 
         // Check for window closing conditions
         if ((!windowOpen && settings->isEnabled) || (wasEnabled && !settings->isEnabled)) {
-            Settings::Save(SettingsPath);
+            Settings::RequestSave(SettingsPath);
         }
         wasEnabled = settings->isEnabled;
 
@@ -84,9 +81,6 @@ namespace wvwfightanalysis::gui {
 
         // Append positioning menu to the same context menu
         ImGuiExt::ContextMenuPosition("AggregateContextMenu");
-
-        settings->position = ImGui::GetWindowPos();
-        settings->size = ImGui::GetWindowSize();
 
         ImGui::End();
     }
@@ -210,7 +204,7 @@ namespace wvwfightanalysis::gui {
             if (ImGui::Button("Apply")) {
                 settings->windowName = settings->tempWindowName;
                 settings->updateDisplayName("Aggregate Stats");  // Update the display name immediately
-                Settings::Save(SettingsPath);
+                Settings::RequestSave(SettingsPath);
             }
 
             // Menu sections
@@ -219,7 +213,7 @@ namespace wvwfightanalysis::gui {
 
             // Squad checkbox
             if (ImGui::Checkbox("Squad Players Only", &settings->squadPlayersOnly)) {
-                Settings::Save(SettingsPath);
+                Settings::RequestSave(SettingsPath);
             }
 
             ImGui::EndPopup();
@@ -232,20 +226,20 @@ namespace wvwfightanalysis::gui {
     void AggregateWindow::RenderDisplaySettings(AggregateWindowSettings* settings) {
         if (ImGui::BeginMenu("Display")) {
             // Combat time settings
-            ImGui::Checkbox("Average combat time", &settings->showAvgCombatTime);
-            ImGui::Checkbox("Total combat time", &settings->showTotalCombatTime);
+            if (ImGui::Checkbox("Average combat time", &settings->showAvgCombatTime)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("Total combat time", &settings->showTotalCombatTime)) Settings::RequestSave(SettingsPath);
             ImGui::Separator();
 
             // Stat visibility
-            ImGui::Checkbox("Average players", &settings->showTeamTotalPlayers);
-            ImGui::Checkbox("Deaths", &settings->showTeamDeaths);
-            ImGui::Checkbox("Downs", &settings->showTeamDowned);
+            if (ImGui::Checkbox("Average players", &settings->showTeamTotalPlayers)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("Deaths", &settings->showTeamDeaths)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("Downs", &settings->showTeamDowned)) Settings::RequestSave(SettingsPath);
             ImGui::Separator();
 
             // Display options
-            ImGui::Checkbox("Label names", &settings->showClassNames);
-            ImGui::Checkbox("Icons", &settings->showClassIcons);
-            ImGui::Checkbox("Average specs", &settings->showAvgSpecs);
+            if (ImGui::Checkbox("Label names", &settings->showClassNames)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("Icons", &settings->showClassIcons)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("Average specs", &settings->showAvgSpecs)) Settings::RequestSave(SettingsPath);
 
             ImGui::EndMenu();
         }
@@ -254,11 +248,11 @@ namespace wvwfightanalysis::gui {
     void AggregateWindow::RenderStyleSelector(AggregateWindowSettings* settings) {
         if (ImGui::BeginMenu("Style")) {
             // Window appearance
-            ImGui::Checkbox("Show title", &settings->showTitle);
-            ImGui::Checkbox("Use window style for title bar", &settings->useWindowStyleForTitle);
-            ImGui::Checkbox("Scroll bar", &settings->showScrollBar);
-            ImGui::Checkbox("Background", &settings->showBackground);
-            ImGui::Checkbox("Allow focus", &settings->allowFocus);
+            if (ImGui::Checkbox("Show title", &settings->showTitle)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("Use window style for title bar", &settings->useWindowStyleForTitle)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("Scroll bar", &settings->showScrollBar)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("Background", &settings->showBackground)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("Allow focus", &settings->allowFocus)) Settings::RequestSave(SettingsPath);
 
             ImGui::EndMenu();
         }

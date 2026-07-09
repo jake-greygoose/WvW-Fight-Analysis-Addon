@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <unordered_set>
 #include "shared/Shared.h"
+#include "settings/Settings.h"
 
 // UTF-8 conversion helpers
 std::string wideToUtf8(const std::wstring& wstr);
@@ -31,4 +32,4 @@ void parseInitialLogs(std::unordered_set<std::wstring>& processedFiles, size_t n
 bool isRunningUnderWine();
 
 void processEVTCFile(const std::filesystem::path& filePath);
-ParsedData parseEVTCFile(const std::filesystem::path& filePath);
+ParsedData parseEVTCFile(const std::filesystem::path& filePath, const ParserSettingsSnapshot& settings);

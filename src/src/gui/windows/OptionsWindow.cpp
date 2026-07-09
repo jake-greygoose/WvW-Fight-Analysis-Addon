@@ -15,25 +15,25 @@ namespace {
             else {
                 UnregisterWindowFromNexusEsc(window, defaultName);
             }
-            Settings::Save(SettingsPath);
+            Settings::RequestSave(SettingsPath);
         }
     }
 
     void RenderBaseWindowSettings(BaseWindowSettings* window) {
         if (ImGui::Checkbox("Hide In Combat", &window->hideInCombat)) {
-            Settings::Save(SettingsPath);
+            Settings::RequestSave(SettingsPath);
         }
         if (ImGui::Checkbox("Hide Out Of Combat", &window->hideOutOfCombat)) {
-            Settings::Save(SettingsPath);
+            Settings::RequestSave(SettingsPath);
         }
         if (ImGui::Checkbox("Lock Position", &window->disableMoving)) {
-            Settings::Save(SettingsPath);
+            Settings::RequestSave(SettingsPath);
         }
         if (ImGui::IsItemHovered()) {
             ImGui::SetTooltip("Disables moving & resizing.");
         }
         if (ImGui::Checkbox("Enable Mouse-Through", &window->disableClicking)) {
-            Settings::Save(SettingsPath);
+            Settings::RequestSave(SettingsPath);
         }
         if (ImGui::IsItemHovered()) {
             ImGui::SetTooltip("Window cannot be interacted with via mouse.");
@@ -54,74 +54,109 @@ namespace wvwfightanalysis::gui {
             if (ImGui::BeginTabItem("Global Settings"))
             {
                 if (ImGui::InputText("Custom Log Path", Settings::LogDirectoryPathC, sizeof(Settings::LogDirectoryPathC))) {
-                    Settings::LogDirectoryPath = Settings::LogDirectoryPathC;
-                    Settings::Settings[CUSTOM_LOG_PATH] = Settings::LogDirectoryPath;
-                    Settings::Save(SettingsPath);
+                    {
+                        std::lock_guard<std::mutex> lock(Settings::Mutex);
+                        Settings::LogDirectoryPath = Settings::LogDirectoryPathC;
+                        Settings::Settings[CUSTOM_LOG_PATH] = Settings::LogDirectoryPath;
+                    }
+                    Settings::RequestSave(SettingsPath);
                 }
 
                 int tempLogHistorySize = static_cast<int>(Settings::logHistorySize);
                 if (ImGui::InputInt("Log History Size", &tempLogHistorySize)) {
-                    Settings::logHistorySize = static_cast<size_t>(std::clamp(tempLogHistorySize, 1, 20));
-                    Settings::Settings[LOG_HISTORY_SIZE] = Settings::logHistorySize;
-                    Settings::Save(SettingsPath);
+                    {
+                        std::lock_guard<std::mutex> lock(Settings::Mutex);
+                        Settings::logHistorySize = static_cast<size_t>(std::clamp(tempLogHistorySize, 1, 20));
+                        Settings::Settings[LOG_HISTORY_SIZE] = Settings::logHistorySize;
+                    }
+                    Settings::RequestSave(SettingsPath);
                 }
                 if (ImGui::IsItemHovered()) {
                     ImGui::SetTooltip("How many parsed logs to keep.");
                 }
 
                 if (ImGui::InputInt("Team Player Threshold", &Settings::teamPlayerThreshold)) {
-                    Settings::teamPlayerThreshold = std::clamp(Settings::teamPlayerThreshold, 0, 100);
-                    Settings::Settings[TEAM_PLAYER_THRESHOLD] = Settings::teamPlayerThreshold;
-                    Settings::Save(SettingsPath);
+                    {
+                        std::lock_guard<std::mutex> lock(Settings::Mutex);
+                        Settings::teamPlayerThreshold = std::clamp(Settings::teamPlayerThreshold, 0, 100);
+                        Settings::Settings[TEAM_PLAYER_THRESHOLD] = Settings::teamPlayerThreshold;
+                    }
+                    Settings::RequestSave(SettingsPath);
                 }
                 if (ImGui::IsItemHovered()) {
                     ImGui::SetTooltip("Set a minimum number of team players required to render team.");
                 }
 
-                if (ImGui::InputInt("Min Total Players", &Settings::minTotalPlayers)) {
-                    Settings::minTotalPlayers = std::clamp(Settings::minTotalPlayers, 0, 50);
-                    Settings::Settings[MIN_TOTAL_PLAYERS] = Settings::minTotalPlayers;
-                    Settings::Save(SettingsPath);
+                int minTotalPlayers = Settings::minTotalPlayers;
+                if (ImGui::InputInt("Min Total Players", &minTotalPlayers)) {
+                    {
+                        std::lock_guard<std::mutex> lock(Settings::Mutex);
+                        Settings::minTotalPlayers = std::clamp(minTotalPlayers, 0, 50);
+                        Settings::Settings[MIN_TOTAL_PLAYERS] = Settings::minTotalPlayers;
+                    }
+                    Settings::RequestSave(SettingsPath);
                 }
                 if (ImGui::IsItemHovered()) {
                     ImGui::SetTooltip("Skip parsing logs with fewer than this many total identified players.");
                 }
 
-                if (ImGui::InputInt("Min Total Deaths", &Settings::minTotalDeaths)) {
-                    Settings::minTotalDeaths = std::clamp(Settings::minTotalDeaths, 0, 50);
-                    Settings::Settings[MIN_TOTAL_DEATHS] = Settings::minTotalDeaths;
-                    Settings::Save(SettingsPath);
+                int minTotalDeaths = Settings::minTotalDeaths;
+                if (ImGui::InputInt("Min Total Deaths", &minTotalDeaths)) {
+                    {
+                        std::lock_guard<std::mutex> lock(Settings::Mutex);
+                        Settings::minTotalDeaths = std::clamp(minTotalDeaths, 0, 50);
+                        Settings::Settings[MIN_TOTAL_DEATHS] = Settings::minTotalDeaths;
+                    }
+                    Settings::RequestSave(SettingsPath);
                 }
                 if (ImGui::IsItemHovered()) {
                     ImGui::SetTooltip("Skip parsing logs with fewer than this many total deaths.");
                 }
 
-                if (ImGui::InputInt("Min Total Downs", &Settings::minTotalDowns)) {
-                    Settings::minTotalDowns = std::clamp(Settings::minTotalDowns, 0, 50);
-                    Settings::Settings[MIN_TOTAL_DOWNS] = Settings::minTotalDowns;
-                    Settings::Save(SettingsPath);
+                int minTotalDowns = Settings::minTotalDowns;
+                if (ImGui::InputInt("Min Total Downs", &minTotalDowns)) {
+                    {
+                        std::lock_guard<std::mutex> lock(Settings::Mutex);
+                        Settings::minTotalDowns = std::clamp(minTotalDowns, 0, 50);
+                        Settings::Settings[MIN_TOTAL_DOWNS] = Settings::minTotalDowns;
+                    }
+                    Settings::RequestSave(SettingsPath);
                 }
                 if (ImGui::IsItemHovered()) {
                     ImGui::SetTooltip("Skip parsing logs with fewer than this many total downs.");
                 }
 
-                if (ImGui::InputInt("Min Combat Duration (s)", &Settings::minCombatDuration)) {
-                    Settings::minCombatDuration = std::clamp(Settings::minCombatDuration, 0, 120);
-                    Settings::Settings[MIN_COMBAT_DURATION] = Settings::minCombatDuration;
-                    Settings::Save(SettingsPath);
+                int minCombatDuration = Settings::minCombatDuration;
+                if (ImGui::InputInt("Min Combat Duration (s)", &minCombatDuration)) {
+                    {
+                        std::lock_guard<std::mutex> lock(Settings::Mutex);
+                        Settings::minCombatDuration = std::clamp(minCombatDuration, 0, 120);
+                        Settings::Settings[MIN_COMBAT_DURATION] = Settings::minCombatDuration;
+                    }
+                    Settings::RequestSave(SettingsPath);
                 }
                 if (ImGui::IsItemHovered()) {
                     ImGui::SetTooltip("Skip parsing logs with combat duration shorter than this (seconds).");
                 }
 
-                if (ImGui::Checkbox("Show Alert On Log Parse", &Settings::showNewParseAlert)) {
-                    Settings::Settings[SHOW_NEW_PARSE_ALERT] = Settings::showNewParseAlert;
-                    Settings::Save(SettingsPath);
+                bool showNewParseAlert = Settings::showNewParseAlert;
+                if (ImGui::Checkbox("Show Alert On Log Parse", &showNewParseAlert)) {
+                    {
+                        std::lock_guard<std::mutex> lock(Settings::Mutex);
+                        Settings::showNewParseAlert = showNewParseAlert;
+                        Settings::Settings[SHOW_NEW_PARSE_ALERT] = Settings::showNewParseAlert;
+                    }
+                    Settings::RequestSave(SettingsPath);
                 }
 
-                if (ImGui::Checkbox("Enable Wine Compatibility Mode", &Settings::forceLinuxCompatibilityMode)) {
-                    Settings::Settings[FORCE_LINUX_COMPAT] = Settings::forceLinuxCompatibilityMode;
-                    Settings::Save(SettingsPath);
+                bool forceLinuxCompatibilityMode = Settings::forceLinuxCompatibilityMode;
+                if (ImGui::Checkbox("Enable Wine Compatibility Mode", &forceLinuxCompatibilityMode)) {
+                    {
+                        std::lock_guard<std::mutex> lock(Settings::Mutex);
+                        Settings::forceLinuxCompatibilityMode = forceLinuxCompatibilityMode;
+                        Settings::Settings[FORCE_LINUX_COMPAT] = Settings::forceLinuxCompatibilityMode;
+                    }
+                    Settings::RequestSave(SettingsPath);
                 }
                 if (ImGui::IsItemHovered()) {
                     ImGui::SetTooltip("Force directory polling instead of change notifications. Enable this only if new logs aren't being detected (rare).");
@@ -130,19 +165,27 @@ namespace wvwfightanalysis::gui {
                 if (Settings::forceLinuxCompatibilityMode) {
                     int tempPollIntervalMilliseconds = static_cast<int>(Settings::pollIntervalMilliseconds);
                     if (ImGui::InputInt("ms Polling Interval", &tempPollIntervalMilliseconds)) {
-                        Settings::pollIntervalMilliseconds =
-                            static_cast<size_t>(std::clamp(tempPollIntervalMilliseconds, 500, 10000));
-                        Settings::Settings[POLL_INTERVAL_MILLISECONDS] = Settings::pollIntervalMilliseconds;
-                        Settings::Save(SettingsPath);
+                        {
+                            std::lock_guard<std::mutex> lock(Settings::Mutex);
+                            Settings::pollIntervalMilliseconds =
+                                static_cast<size_t>(std::clamp(tempPollIntervalMilliseconds, 500, 10000));
+                            Settings::Settings[POLL_INTERVAL_MILLISECONDS] = Settings::pollIntervalMilliseconds;
+                        }
+                        Settings::RequestSave(SettingsPath);
                     }
                     if (ImGui::IsItemHovered()) {
                         ImGui::SetTooltip("Polling Interval when using Wine compatibility mode.");
                     }
                 }
 
-                if (ImGui::Checkbox("Enable Debug Logging", &Settings::debugStringsMode)) {
-                    Settings::Settings[DEBUG_STRINGS_MODE] = Settings::debugStringsMode;
-                    Settings::Save(SettingsPath);
+                bool debugStringsMode = Settings::debugStringsMode;
+                if (ImGui::Checkbox("Enable Debug Logging", &debugStringsMode)) {
+                    {
+                        std::lock_guard<std::mutex> lock(Settings::Mutex);
+                        Settings::debugStringsMode = debugStringsMode;
+                        Settings::Settings[DEBUG_STRINGS_MODE] = Settings::debugStringsMode;
+                    }
+                    Settings::RequestSave(SettingsPath);
                 }
 
                 const char* specIconOptions[] = {
@@ -156,7 +199,7 @@ namespace wvwfightanalysis::gui {
                     Settings::scrapperIconStyle = std::clamp(selectedSpecIconStyle, 0, 3);
                     Settings::Settings[SCRAPPER_ICON_STYLE] = Settings::scrapperIconStyle;
                     InvalidateProfessionIconTextures();
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
                 if (ImGui::IsItemHovered()) {
                     ImGui::SetTooltip("Select which profession/spec icon variant to use.");
@@ -179,10 +222,11 @@ namespace wvwfightanalysis::gui {
                             directoryMonitorThread.join();
                         }
                         stopMonitoring = false;
+                        ParserSettingsSnapshot settings = Settings::GetParserSettingsSnapshot();
                         directoryMonitorThread = std::thread(
                             monitorDirectory,
-                            Settings::logHistorySize,
-                            Settings::pollIntervalMilliseconds
+                            settings.logHistorySize,
+                            settings.pollIntervalMilliseconds
                         );
                         isRestartInProgress.store(false);
                         }).detach();
@@ -201,12 +245,12 @@ namespace wvwfightanalysis::gui {
                 ImGui::BeginGroup();
                 if (ImGui::Button("Add Window")) {
                     Settings::windowManager.AddMainWindow();
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
                 ImGui::SameLine();
                 if (ImGui::Button("Remove Window") && Settings::windowManager.mainWindows.size() > 1) {
                     Settings::windowManager.RemoveMainWindow();
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
                 ImGui::EndGroup();
                 ImGui::Separator();
@@ -216,7 +260,7 @@ namespace wvwfightanalysis::gui {
                     ImGui::PushID(windowIndex);
 
                     if (ImGui::Checkbox("##Enabled", &window->isEnabled)) {
-                        Settings::Save(SettingsPath);
+                        Settings::RequestSave(SettingsPath);
                     }
                     if (ImGui::IsItemHovered()) {
                         ImGui::SetTooltip("Enable or disable this main window.");
@@ -254,12 +298,12 @@ namespace wvwfightanalysis::gui {
                 ImGui::BeginGroup();
                 if (ImGui::Button("Add Widget")) {
                     Settings::windowManager.AddWidgetWindow();
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
                 ImGui::SameLine();
                 if (ImGui::Button("Remove Widget") && Settings::windowManager.widgetWindows.size() > 1) {
                     Settings::windowManager.RemoveWidgetWindow();
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
                 ImGui::EndGroup();
                 ImGui::Separator();
@@ -269,7 +313,7 @@ namespace wvwfightanalysis::gui {
                     ImGui::PushID(windowIndex);
 
                     if (ImGui::Checkbox("##Enabled", &window->isEnabled)) {
-                        Settings::Save(SettingsPath);
+                        Settings::RequestSave(SettingsPath);
                     }
                     if (ImGui::IsItemHovered()) {
                         ImGui::SetTooltip("Enable or disable this widget window.");
@@ -307,13 +351,13 @@ namespace wvwfightanalysis::gui {
                 auto& window = Settings::windowManager.aggregateWindow;
 
                 if (ImGui::Checkbox("Enabled", &window->isEnabled)) {
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
 
                 RenderNexusEscCloseCheckbox(window.get(), "Aggregate Stats");
                 RenderBaseWindowSettings(window.get());
                 if (ImGui::Checkbox("Hide When Empty", &window->hideWhenEmpty)) {
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
 
                 ImGui::EndTabItem();

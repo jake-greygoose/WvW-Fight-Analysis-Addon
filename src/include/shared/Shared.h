@@ -105,10 +105,10 @@ extern std::thread initialParsingThread;
 extern std::thread directoryMonitorThread;
 extern std::atomic<bool> isRestartInProgress;
 extern int currentLogIndex;
+extern std::atomic<uint64_t> parsedLogsRevision;
 
-// Animation triggers
-extern std::atomic<float> newLogDetectedTime;     // Time when new log was detected (0 = no animation)
-extern std::atomic<float> parseCompleteTime;      // Time when parsing completed (0 = no animation)
+extern std::atomic<float> newLogDetectedTime;
+extern std::atomic<float> parseCompleteTime;
 
 static const char* const EV_LOG_PARSED = "EV_LOG_PARSED";
 

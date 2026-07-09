@@ -212,7 +212,7 @@ int getBossEncounterNpcDirs()
 // File system monitoring implementations
 bool isRunningUnderWine()
 {
-    if (Settings::forceLinuxCompatibilityMode) {
+    if (Settings::GetParserSettingsSnapshot().forceLinuxCompatibilityMode) {
         return true;
     }
     HKEY hKey;

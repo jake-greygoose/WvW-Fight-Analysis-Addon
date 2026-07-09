@@ -99,6 +99,7 @@ std::mutex processedFilesMutex;
 std::thread initialParsingThread;
 std::thread directoryMonitorThread;
 int currentLogIndex = 0;
+std::atomic<uint64_t> parsedLogsRevision{ 0 };
 
 // Animation triggers
 std::atomic<float> newLogDetectedTime{ 0.0f };

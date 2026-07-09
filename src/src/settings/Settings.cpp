@@ -4,6 +4,9 @@
 #include <filesystem>
 #include <fstream>
 #include <algorithm>
+#include <chrono>
+#include <cctype>
+#include <unordered_map>
 
 // Global Settings
 const char* CUSTOM_LOG_PATH = "CustomLogDirectoryPath";
@@ -36,11 +39,41 @@ static const std::unordered_map<int, std::string> DEFAULT_TEAM_IDS = {
     {1281, "Blue"}, {1282, "Blue"}, {1989, "Blue"}, {1996, "Blue"}
 };
 
+namespace {
+    std::unordered_map<std::string, int> s_nextWindowIds;
+
+    void SeedUniqueIdPast(const std::string& id) {
+        if (id.empty())
+            return;
+
+        size_t digitsStart = id.size();
+        while (digitsStart > 0 && std::isdigit(static_cast<unsigned char>(id[digitsStart - 1]))) {
+            --digitsStart;
+        }
+
+        if (digitsStart == id.size())
+            return;
+
+        std::string prefix = id.substr(0, digitsStart);
+        int numericId = 0;
+        try {
+            numericId = std::stoi(id.substr(digitsStart));
+        }
+        catch (...) {
+            return;
+        }
+
+        int& nextId = s_nextWindowIds[prefix];
+        nextId = std::max(nextId, numericId + 1);
+    }
+}
+
 BaseWindowSettings::BaseWindowSettings(const json& j, const std::string& idPrefix) {
     windowId = GenerateUniqueId(idPrefix);
 
     if (!j.is_null()) {
         windowId = j.value("windowId", windowId);
+        SeedUniqueIdPast(windowId);
         windowName = j.value("windowName", "");
         isEnabled = j.value("isEnabled", isEnabled);
         hideInCombat = j.value("hideInCombat", hideInCombat);
@@ -61,15 +94,13 @@ BaseWindowSettings::BaseWindowSettings(const json& j, const std::string& idPrefi
         excludeGreenTeam = j.value("excludeGreenTeam", excludeGreenTeam);
         excludeBlueTeam = j.value("excludeBlueTeam", excludeBlueTeam);
 
-        position.x = j.value("positionX", position.x);
-        position.y = j.value("positionY", position.y);
-        size.x = j.value("sizeX", size.x);
-        size.y = j.value("sizeY", size.y);
     }
 }
 
 std::string BaseWindowSettings::GenerateUniqueId(const std::string& prefix) {
-    static int nextId = 1;
+    int& nextId = s_nextWindowIds[prefix];
+    if (nextId < 1)
+        nextId = 1;
     return prefix + std::to_string(nextId++);
 }
 
@@ -104,11 +135,7 @@ json BaseWindowSettings::toJson() const {
         {"useWindowStyleForTitle", useWindowStyleForTitle},
         {"excludeRedTeam", excludeRedTeam},
         {"excludeGreenTeam", excludeGreenTeam},
-        {"excludeBlueTeam", excludeBlueTeam},
-        {"positionX", position.x},
-        {"positionY", position.y},
-        {"sizeX", size.x},
-        {"sizeY", size.y}
+        {"excludeBlueTeam", excludeBlueTeam}
     };
 }
 
@@ -309,11 +336,8 @@ WidgetWindowSettings::WidgetWindowSettings(const json& j) : BaseWindowSettings(j
 
 AggregateWindowSettings::AggregateWindowSettings(const json& j) : BaseWindowSettings(j, "agg_") {
     isEnabled = false;
-    size = ImVec2(450, 350);
     if (!j.is_null()) {
         isEnabled = j.value("isEnabled", isEnabled);
-        size.x = j.value("sizeX", size.x);
-        size.y = j.value("sizeY", size.y);
         showAvgCombatTime = j.value("showAvgCombatTime", showAvgCombatTime);
         showTotalCombatTime = j.value("showTotalCombatTime", showTotalCombatTime);
         showTeamTotalPlayers = j.value("showTeamTotalPlayers", showTeamTotalPlayers);
@@ -423,6 +447,9 @@ namespace Settings {
     std::mutex Mutex;
     json Settings = json::object();
     WindowManager windowManager;
+    bool pendingSave = false;
+    std::filesystem::path pendingSavePath;
+    std::chrono::steady_clock::time_point lastSaveRequestTime{};
 
     std::string LogDirectoryPath;
     char LogDirectoryPathC[256] = "";
@@ -442,7 +469,7 @@ namespace Settings {
     std::unordered_map<int, std::string> teamIDs;
 
     void Settings::Load(std::filesystem::path aPath) {
-        Settings::Mutex.lock();
+        std::lock_guard<std::mutex> lock(Settings::Mutex);
         {
             try {
                 if (!std::filesystem::exists(aPath)) {
@@ -702,11 +729,10 @@ namespace Settings {
                 Settings["windows"] = windowManager.ToJson();
             }
         }
-        Settings::Mutex.unlock();
     }
 
     void Settings::Save(std::filesystem::path aPath) {
-        Settings::Mutex.lock();
+        std::lock_guard<std::mutex> lock(Settings::Mutex);
         {
             // Update windows section
             Settings["windows"] = windowManager.ToJson();
@@ -724,16 +750,57 @@ namespace Settings {
             file << Settings.dump(1, '\t') << std::endl;
             file.close();
         }
-        Settings::Mutex.unlock();
+    }
+
+    void Settings::RequestSave(std::filesystem::path aPath) {
+        std::lock_guard<std::mutex> lock(Settings::Mutex);
+        pendingSave = true;
+        pendingSavePath = std::move(aPath);
+        lastSaveRequestTime = std::chrono::steady_clock::now();
+    }
+
+    void Settings::FlushPendingSave(std::filesystem::path aPath, bool force) {
+        std::filesystem::path pathToSave;
+        {
+            std::lock_guard<std::mutex> lock(Settings::Mutex);
+            if (!pendingSave)
+                return;
+
+            constexpr auto debounceDelay = std::chrono::milliseconds(500);
+            bool shouldSave = force || (std::chrono::steady_clock::now() - lastSaveRequestTime >= debounceDelay);
+            if (!shouldSave)
+                return;
+
+            if (pendingSavePath.empty())
+                pendingSavePath = std::move(aPath);
+            pathToSave = pendingSavePath;
+            pendingSave = false;
+        }
+
+        Save(std::move(pathToSave));
+    }
+
+    ParserSettingsSnapshot Settings::GetParserSettingsSnapshot() {
+        std::lock_guard<std::mutex> lock(Settings::Mutex);
+        ParserSettingsSnapshot snapshot;
+        snapshot.logDirectoryPath = LogDirectoryPath;
+        snapshot.logHistorySize = logHistorySize;
+        snapshot.minTotalPlayers = minTotalPlayers;
+        snapshot.minTotalDeaths = minTotalDeaths;
+        snapshot.minTotalDowns = minTotalDowns;
+        snapshot.minCombatDuration = minCombatDuration;
+        snapshot.showNewParseAlert = showNewParseAlert;
+        snapshot.forceLinuxCompatibilityMode = forceLinuxCompatibilityMode;
+        snapshot.pollIntervalMilliseconds = pollIntervalMilliseconds;
+        snapshot.debugStringsMode = debugStringsMode;
+        snapshot.teamIDs = teamIDs;
+        return snapshot;
     }
 
     void Settings::InitializeDefaultWindows() {
         if (windowManager.mainWindows.empty()) {
             auto mainWindow = windowManager.AddMainWindow();
 
-            // Window position and basic settings
-            mainWindow->position = ImVec2(1030, 300);
-            mainWindow->size = ImVec2(250, 350);
             mainWindow->isEnabled = true;
             mainWindow->showScrollBar = false;
             mainWindow->showTitle = true;
@@ -802,8 +869,6 @@ namespace Settings {
             auto widgetWindow = windowManager.AddWidgetWindow();
 
             widgetWindow->largerFont = false;
-            widgetWindow->position = ImVec2(750, 350);
-            widgetWindow->size = ImVec2(320, 20);
             widgetWindow->isEnabled = true;
             widgetWindow->showScrollBar = false;
             widgetWindow->showBackground = true;

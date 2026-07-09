@@ -119,7 +119,7 @@ void RenderWvWWidgetContextMenu() {
 
     // Save settings when changed
     if (ImGui::IsItemDeactivatedAfterEdit()) {
-        Settings::Save(SettingsPath);
+        Settings::RequestSave(SettingsPath);
     }
 }
 

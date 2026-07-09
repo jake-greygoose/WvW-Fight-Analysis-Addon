@@ -20,6 +20,18 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
         for (float& v : values) v /= total;
 }
 
+static float ResolveAnimationTime(std::atomic<float>& animationTime, float renderTime) {
+    float value = animationTime.load();
+    if (value >= 0.0f)
+        return value;
+
+    float pending = value;
+    if (animationTime.compare_exchange_strong(pending, renderTime))
+        return renderTime;
+
+    return animationTime.load();
+}
+
     void WidgetWindow::Render(HINSTANCE hSelf, WidgetWindowSettings* settings) {
         if (!settings->isEnabled)
             return;
@@ -233,8 +245,6 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
             // Pop style vars after all popup content (including positioning) is added
             ImGui::PopStyleVar(2);
 
-            settings->position = ImGui::GetWindowPos();
-
             ImGui::PopStyleColor();
             ImGui::PopStyleVar(4);
             ImGui::End();
@@ -276,7 +286,7 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
                 settings->windowName = settings->tempWindowName;
                 settings->updateDisplayName("WvW Fight Analysis");
                 RegisterWindowForNexusEsc(settings, "WvW Fight Analysis");
-                Settings::Save(SettingsPath);
+                Settings::RequestSave(SettingsPath);
             }
 
             RenderHistoryMenu();
@@ -285,12 +295,12 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
 
             if (ImGui::Checkbox("Damage vs Logged Players Only", &settings->vsLoggedPlayersOnly)) {
                 Settings::Settings["vsLoggedPlayersOnly"] = settings->vsLoggedPlayersOnly;
-                Settings::Save(SettingsPath);
+                Settings::RequestSave(SettingsPath);
             }
 
             if (ImGui::Checkbox("Show Squad Players Only", &settings->squadPlayersOnly)) {
                 Settings::Settings["squadPlayersOnly"] = settings->squadPlayersOnly;
-                Settings::Save(SettingsPath);
+                Settings::RequestSave(SettingsPath);
             }
 
             ImGui::EndPopup();
@@ -312,7 +322,7 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
                 if (ImGui::RadioButton(statOptions[i], isSelected)) {
                     settings->widgetStats = statValues[i];
                     Settings::Settings["widgetStats"] = settings->widgetStats;
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
             }
             ImGui::EndMenu();
@@ -323,17 +333,17 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
         if (ImGui::BeginMenu("Style")) {
             if (ImGui::Checkbox("use larger font", &settings->largerFont)) {
                 Settings::Settings["largerFont"] = settings->largerFont;
-                Settings::Save(SettingsPath);
+                Settings::RequestSave(SettingsPath);
             }
 
             if (ImGui::Checkbox("show widget icon", &settings->showWidgetIcon)) {
                 Settings::Settings["ShowWidgetIcon"] = settings->showWidgetIcon;
-                Settings::Save(SettingsPath);
+                Settings::RequestSave(SettingsPath);
             }
 
             if (ImGui::Checkbox("use pie chart style", &settings->usePieChartStyle)) {
                 Settings::Settings["usePieChartStyle"] = settings->usePieChartStyle;
-                Settings::Save(SettingsPath);
+                Settings::RequestSave(SettingsPath);
             }
 
             // Pie chart size controls (only shown in pie chart mode)
@@ -343,14 +353,14 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
                     settings->pieChartSize = std::round(settings->pieChartSize);
                     settings->pieChartSize = std::clamp(settings->pieChartSize, 100.0f, 600.0f);
                     Settings::Settings["pieChartSize"] = settings->pieChartSize;
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
                 ImGui::SameLine();
                 ImGui::SetNextItemWidth(60.0f);
                 if (ImGui::InputFloat("pie chart size", &settings->pieChartSize, 1.0f, 1.0f, "%.0f")) {
                     settings->pieChartSize = std::clamp(settings->pieChartSize, 100.0f, 600.0f);
                     Settings::Settings["pieChartSize"] = settings->pieChartSize;
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
             }
 
@@ -363,14 +373,14 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
                         settings->widgetRoundness = std::round(settings->widgetRoundness);
                         settings->widgetRoundness = std::clamp(settings->widgetRoundness, 0.0f, 12.0f);
                         Settings::Settings["widgetRoundness"] = settings->widgetRoundness;
-                        Settings::Save(SettingsPath);
+                        Settings::RequestSave(SettingsPath);
                     }
                     ImGui::SameLine();
                     ImGui::SetNextItemWidth(60.0f);
                     if (ImGui::InputFloat("widget roundness", &settings->widgetRoundness, 1.0f, 1.0f, "%.0f")) {
                         settings->widgetRoundness = std::clamp(settings->widgetRoundness, 0.0f, 12.0f);
                         Settings::Settings["widgetRoundness"] = settings->widgetRoundness;
-                        Settings::Save(SettingsPath);
+                        Settings::RequestSave(SettingsPath);
                     }
 
                 }
@@ -380,14 +390,14 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
                     settings->widgetBorderThickness = std::round(settings->widgetBorderThickness);
                     settings->widgetBorderThickness = std::clamp(settings->widgetBorderThickness, 0.0f, 12.0f);
                     Settings::Settings["widgetBorderThickness"] = settings->widgetBorderThickness;
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
                 ImGui::SameLine();
                 ImGui::SetNextItemWidth(60.0f);
                 if (ImGui::InputFloat("border thickness", &settings->widgetBorderThickness, 1.0f, 1.0f, "%.0f")) {
                     settings->widgetBorderThickness = std::clamp(settings->widgetBorderThickness, 0.0f, 12.0f);
                     Settings::Settings["widgetBorderThickness"] = settings->widgetBorderThickness;
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
 
                 ImGui::SetNextItemWidth(200.0f);
@@ -395,14 +405,14 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
                     settings->widgetHeight = std::round(settings->widgetHeight);
                     settings->widgetHeight = std::clamp(settings->widgetHeight, 0.0f, 900.0f);
                     Settings::Settings["WidgetHeight"] = settings->widgetHeight;
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
                 ImGui::SameLine();
                 ImGui::SetNextItemWidth(60.0f);
                 if (ImGui::InputFloat("widget height", &settings->widgetHeight, 1.0f, 1.0f, "%.0f")) {
                     settings->widgetHeight = std::clamp(settings->widgetHeight, 0.0f, 900.0f);
                     Settings::Settings["WidgetHeight"] = settings->widgetHeight;
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
 
                 // Widget Width controls (now discrete)
@@ -411,14 +421,14 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
                     settings->widgetWidth = std::round(settings->widgetWidth);
                     settings->widgetWidth = std::clamp(settings->widgetWidth, 0.0f, 900.0f);
                     Settings::Settings["WidgetWidth"] = settings->widgetWidth;
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
                 ImGui::SameLine();
                 ImGui::SetNextItemWidth(60.0f);
                 if (ImGui::InputFloat("widget width", &settings->widgetWidth, 1.0f, 1.0f, "%.0f")) {
                     settings->widgetWidth = std::clamp(settings->widgetWidth, 0.0f, 900.0f);
                     Settings::Settings["WidgetWidth"] = settings->widgetWidth;
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
             }
 
@@ -428,14 +438,14 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
                 settings->textVerticalAlignOffset = std::round(settings->textVerticalAlignOffset);
                 settings->textVerticalAlignOffset = std::clamp(settings->textVerticalAlignOffset, -50.0f, 50.0f);
                 Settings::Settings["TextVerticalAlignOffset"] = settings->textVerticalAlignOffset;
-                Settings::Save(SettingsPath);
+                Settings::RequestSave(SettingsPath);
             }
             ImGui::SameLine();
             ImGui::SetNextItemWidth(60.0f);
             if (ImGui::InputFloat("text vertical align", &settings->textVerticalAlignOffset, 1.0f, 1.0f, "%.0f")) {
                 settings->textVerticalAlignOffset = std::clamp(settings->textVerticalAlignOffset, -50.0f, 50.0f);
                 Settings::Settings["TextVerticalAlignOffset"] = settings->textVerticalAlignOffset;
-                Settings::Save(SettingsPath);
+                Settings::RequestSave(SettingsPath);
             }
 
             // Text Horizontal Alignment controls (now discrete)
@@ -444,14 +454,14 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
                 settings->textHorizontalAlignOffset = std::round(settings->textHorizontalAlignOffset);
                 settings->textHorizontalAlignOffset = std::clamp(settings->textHorizontalAlignOffset, -50.0f, 50.0f);
                 Settings::Settings["TextHorizontalAlignOffset"] = settings->textHorizontalAlignOffset;
-                Settings::Save(SettingsPath);
+                Settings::RequestSave(SettingsPath);
             }
             ImGui::SameLine();
             ImGui::SetNextItemWidth(60.0f);
             if (ImGui::InputFloat("text horizontal align", &settings->textHorizontalAlignOffset, 1.0f, 1.0f, "%.0f")) {
                 settings->textHorizontalAlignOffset = std::clamp(settings->textHorizontalAlignOffset, -50.0f, 50.0f);
                 Settings::Settings["TextHorizontalAlignOffset"] = settings->textHorizontalAlignOffset;
-                Settings::Save(SettingsPath);
+                Settings::RequestSave(SettingsPath);
             }
 
             bool colorsChanged = false;
@@ -530,14 +540,14 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
                     colorsChangedCombat = true;
                 }
                 if (colorsChangedCombat)
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 ImGui::EndMenu();
             }
 
             // Save only once if any color has changed.
             if (colorsChanged)
             {
-                Settings::Save(SettingsPath);
+                Settings::RequestSave(SettingsPath);
             }
 
 
@@ -618,7 +628,7 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
         auto& labelAlpha        = anim.labelAlpha;
 
         bool inCombat = MumbleLink->Context.IsInCombat;
-        float time = ImGui::GetTime();
+        float time = static_cast<float>(ImGui::GetTime());
         float dt = ImGui::GetIO().DeltaTime;
         if (dt <= 0.0f) dt = 1.0f / 60.0f;
 
@@ -639,14 +649,14 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
         }
 
         // New log detected: briefly fade the labels out while the parse runs.
-        float newLogTime = newLogDetectedTime.load();
+        float newLogTime = ResolveAnimationTime(newLogDetectedTime, time);
         if (newLogTime > 0.0f) {
             float elapsed = time - newLogTime;
             if (elapsed < 0.5f) hideLabels = true;
             else newLogDetectedTime.store(0.0f);
         }
 
-        float parseTime = parseCompleteTime.load();
+        float parseTime = ResolveAnimationTime(parseCompleteTime, time);
         if (parseTime > 0.0f) {
             float elapsed = time - parseTime;
             if (elapsed < 0.45f) hideLabels = true;
@@ -896,21 +906,21 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
             colorsU32.push_back(ImGui::ColorConvertFloat4ToU32(color));
         }
 
-        // Animation state for smooth transitions
-        static std::vector<float> previousRatios;
-        static std::vector<float> targetRatios;
-        static float transitionStartTime = 0.0f;
-        static const float transitionDuration = 1.5f; // 1.5 seconds for smooth transition
+        PieAnimState& pieAnim = m_pieAnimStates[settings];
+        auto& previousRatios      = pieAnim.previousRatios;
+        auto& targetRatios        = pieAnim.targetRatios;
+        float& transitionStartTime = pieAnim.transitionStartTime;
+        const float transitionDuration = 1.5f;
 
         std::vector<float> displayRatios = ratios;
         float globalRotation = 0.0f;
         bool inCombat = MumbleLink->Context.IsInCombat;
-        float time = ImGui::GetTime();
+        float time = static_cast<float>(ImGui::GetTime());
 
         // Track combat state changes
-        static bool wasInCombat = false;
-        static float leftCombatTime = 0.0f;
-        static float enteredCombatTime = 0.0f;
+        bool&  wasInCombat       = pieAnim.wasInCombat;
+        float& leftCombatTime    = pieAnim.leftCombatTime;
+        float& enteredCombatTime = pieAnim.enteredCombatTime;
 
         // Detect entering combat
         if (!wasInCombat && inCombat) {
@@ -935,7 +945,7 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
         bool hideLabelsForAnimation = false;
 
         // New log detected animation: Subtle fade for 1 second
-        float newLogTime = newLogDetectedTime.load();
+        float newLogTime = ResolveAnimationTime(newLogDetectedTime, time);
         float newLogAlpha = 1.0f;
         if (newLogTime > 0.0f) {
             float timeSinceDetection = time - newLogTime;
@@ -958,7 +968,7 @@ static void ApplyCombatWobble(std::vector<float>& values, float time, float magn
         }
 
         // Parse complete animation: Initiate smooth transition and subtle single pulse
-        float parseTime = parseCompleteTime.load();
+        float parseTime = ResolveAnimationTime(parseCompleteTime, time);
         if (parseTime > 0.0f) {
             float timeSinceComplete = time - parseTime;
 

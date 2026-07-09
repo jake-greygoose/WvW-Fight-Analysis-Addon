@@ -192,8 +192,7 @@ bool isDamageInDownSequence(const Agent* agent, const AgentState& state, uint64_
         if (event.time >= currentTime) continue;
 
         if (event.isStateChange == static_cast<uint8_t>(StateChange::HealthUpdate)) {
-            float healthPercent = (event.dstAgent * 100.0f) / event.value;
-            if (healthPercent > 98.0f) {
+            if (event.value > 0 && (event.dstAgent * 100.0f) / event.value > 98.0f) {
                 lastHighHealthTime = event.time;
                 break;
             }

@@ -1,4 +1,4 @@
-﻿#define NOMINMAX
+#define NOMINMAX
 #include "gui/windows/MainWindow.h"
 #include "resource.h"
 #include "thirdparty/imgui_positioning/imgui_positioning.h"
@@ -64,6 +64,13 @@ namespace wvwfightanalysis::gui {
     void MainWindow::Render(HINSTANCE hSelf, MainWindowSettings* settings) {
 
         static bool wasEnabled = settings->isEnabled;
+        static uint64_t seenParsedLogsRevision = 0;
+
+        uint64_t currentParsedLogsRevision = parsedLogsRevision.load(std::memory_order_relaxed);
+        if (currentParsedLogsRevision != seenParsedLogsRevision) {
+            s_specRenderCache.clear();
+            seenParsedLogsRevision = currentParsedLogsRevision;
+        }
 
         if (!settings->isEnabled)
             return;
@@ -84,12 +91,9 @@ namespace wvwfightanalysis::gui {
         if (settings->disableClicking)
             window_flags |= ImGuiWindowFlags_NoInputs;
 
-        // Update positioning from imgui_positioning library
-        // Note: Don't call SetNextWindowPos/Size as it conflicts with imgui_positioning
         window_flags |= ImGuiExt::UpdatePosition(windowName);
 
-        // Only set default size on first use (position is handled by imgui_positioning)
-        ImGui::SetNextWindowSize(settings->size, ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(250, 350), ImGuiCond_FirstUseEver);
 
         bool pushedTitleStyle = false;
         if (settings->useWindowStyleForTitle) {
@@ -107,7 +111,7 @@ namespace wvwfightanalysis::gui {
 
         // Check for window closing conditions
         if ((!windowOpen && settings->isEnabled) || (wasEnabled && !settings->isEnabled)) {
-            Settings::Save(SettingsPath);
+            Settings::RequestSave(SettingsPath);
         }
         wasEnabled = settings->isEnabled;
 
@@ -284,11 +288,6 @@ namespace wvwfightanalysis::gui {
         // Append positioning menu to the same context menu
         ImGuiExt::ContextMenuPosition("MainWindowContextMenu");
 
-        // Update window position & size for persistent settings.
-        settings->position = ImGui::GetWindowPos();
-        settings->size = ImGui::GetWindowSize();
-
-        // End this window.
         ImGui::End();
 
         // --- Pop the title style colors so they don't affect other windows ---
@@ -887,7 +886,7 @@ namespace wvwfightanalysis::gui {
             // No need to unregister/re-register from Nexus since we're using ### now
             settings->windowName = settings->tempWindowName;
             settings->updateDisplayName("WvW Fight Analysis");
-            Settings::Save(SettingsPath);
+            Settings::RequestSave(SettingsPath);
         }
 
         RenderHistoryMenu();
@@ -895,28 +894,28 @@ namespace wvwfightanalysis::gui {
 
         // Display Settings
         if (ImGui::BeginMenu("Display")) {
-            if (ImGui::Checkbox("log name", &settings->showLogName)) Settings::Save(SettingsPath);
-            if (ImGui::Checkbox("short spec names", &settings->useShortClassNames)) Settings::Save(SettingsPath);
-            if (ImGui::Checkbox("draw bars", &settings->showSpecBars)) Settings::Save(SettingsPath);
-            if (ImGui::Checkbox("tooltips", &settings->showSpecTooltips)) Settings::Save(SettingsPath);
+            if (ImGui::Checkbox("log name", &settings->showLogName)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("short spec names", &settings->useShortClassNames)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("draw bars", &settings->showSpecBars)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("tooltips", &settings->showSpecTooltips)) Settings::RequestSave(SettingsPath);
 
             if (ImGui::BeginMenu("Team Stats")) {
-                if (ImGui::Checkbox("player count", &settings->showTeamTotalPlayers)) { Settings::Save(SettingsPath); }
-                if (ImGui::Checkbox("k/d ratio", &settings->showTeamKDR)) { Settings::Save(SettingsPath); }
-                if (ImGui::Checkbox("deaths", &settings->showTeamDeaths)) { Settings::Save(SettingsPath); }
-                if (ImGui::Checkbox("downs", &settings->showTeamDowned)) { Settings::Save(SettingsPath); }
-                //if (ImGui::Checkbox("strips", &settings->showTeamStrips)) { Settings::Save(SettingsPath); }
-                if (ImGui::Checkbox("outgoing damage", &settings->showTeamDamage)) { Settings::Save(SettingsPath); }
-                if (ImGui::Checkbox("outgoing down cont", &settings->showTeamDownCont)) { Settings::Save(SettingsPath); }
-                if (ImGui::Checkbox("outgoing kill cont", &settings->showTeamKillCont)) { Settings::Save(SettingsPath); }
-                if (ImGui::Checkbox("outgoing strike damage", &settings->showTeamStrikeDamage)) { Settings::Save(SettingsPath); }
-                if (ImGui::Checkbox("outgoing condi damage", &settings->showTeamCondiDamage)) { Settings::Save(SettingsPath); }
+                if (ImGui::Checkbox("player count", &settings->showTeamTotalPlayers)) { Settings::RequestSave(SettingsPath); }
+                if (ImGui::Checkbox("k/d ratio", &settings->showTeamKDR)) { Settings::RequestSave(SettingsPath); }
+                if (ImGui::Checkbox("deaths", &settings->showTeamDeaths)) { Settings::RequestSave(SettingsPath); }
+                if (ImGui::Checkbox("downs", &settings->showTeamDowned)) { Settings::RequestSave(SettingsPath); }
+                //if (ImGui::Checkbox("strips", &settings->showTeamStrips)) { Settings::RequestSave(SettingsPath); }
+                if (ImGui::Checkbox("outgoing damage", &settings->showTeamDamage)) { Settings::RequestSave(SettingsPath); }
+                if (ImGui::Checkbox("outgoing down cont", &settings->showTeamDownCont)) { Settings::RequestSave(SettingsPath); }
+                if (ImGui::Checkbox("outgoing kill cont", &settings->showTeamKillCont)) { Settings::RequestSave(SettingsPath); }
+                if (ImGui::Checkbox("outgoing strike damage", &settings->showTeamStrikeDamage)) { Settings::RequestSave(SettingsPath); }
+                if (ImGui::Checkbox("outgoing condi damage", &settings->showTeamCondiDamage)) { Settings::RequestSave(SettingsPath); }
                 ImGui::EndMenu();
             }
 
             if (ImGui::BeginMenu("Bar Configuration")) {
                 if (ImGui::Checkbox("Independent of sort", &settings->barRepIndependent)) {
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
 
                 if (settings->barRepIndependent) {
@@ -934,7 +933,7 @@ namespace wvwfightanalysis::gui {
                                 settings->barRepresentation == displayValues[i]))
                             {
                                 settings->barRepresentation = displayValues[i];
-                                Settings::Save(SettingsPath);
+                                Settings::RequestSave(SettingsPath);
                             }
                         }
                         ImGui::EndMenu();
@@ -950,13 +949,13 @@ namespace wvwfightanalysis::gui {
 
         // Style Settings
         if (ImGui::BeginMenu("Style")) {
-            if (ImGui::Checkbox("use tabbed view", &settings->useTabbedView)) Settings::Save(SettingsPath);
-            if (ImGui::Checkbox("show title", &settings->showTitle)) Settings::Save(SettingsPath);
-            if (ImGui::Checkbox("window style title", &settings->useWindowStyleForTitle)) Settings::Save(SettingsPath);
-            if (ImGui::Checkbox("scroll bar", &settings->showScrollBar)) Settings::Save(SettingsPath);
-            if (ImGui::Checkbox("allow focus", &settings->allowFocus)) Settings::Save(SettingsPath);
-            if (ImGui::Checkbox("background", &settings->showBackground)) Settings::Save(SettingsPath);
-            if (ImGui::Checkbox("overide tableheaderbg", &settings->overideTableBackgroundStyle)) Settings::Save(SettingsPath);
+            if (ImGui::Checkbox("use tabbed view", &settings->useTabbedView)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("show title", &settings->showTitle)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("window style title", &settings->useWindowStyleForTitle)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("scroll bar", &settings->showScrollBar)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("allow focus", &settings->allowFocus)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("background", &settings->showBackground)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("overide tableheaderbg", &settings->overideTableBackgroundStyle)) Settings::RequestSave(SettingsPath);
             
             float currentFrameRounding = ImGui::GetStyle().FrameRounding;
             if (!currentFrameRounding) {
@@ -968,7 +967,7 @@ namespace wvwfightanalysis::gui {
                     if (settings->barCornerRounding > 12)
                         settings->barCornerRounding = 12;
 
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
                 ImGui::PopItemWidth();
                 
@@ -985,23 +984,23 @@ namespace wvwfightanalysis::gui {
             for (int i = 0; i < IM_ARRAYSIZE(sortOptions); i++) {
                 if (ImGui::RadioButton(sortOptions[i], settings->windowSort == sortValues[i])) {
                     settings->windowSort = sortValues[i];
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
             }
             ImGui::EndMenu();
         }
 
-        if (ImGui::Checkbox("Show Squad Players Only", &settings->squadPlayersOnly)) Settings::Save(SettingsPath);
-        if (ImGui::Checkbox("Damage vs Logged Players Only", &settings->vsLoggedPlayersOnly)) Settings::Save(SettingsPath);
+        if (ImGui::Checkbox("Show Squad Players Only", &settings->squadPlayersOnly)) Settings::RequestSave(SettingsPath);
+        if (ImGui::Checkbox("Damage vs Logged Players Only", &settings->vsLoggedPlayersOnly)) Settings::RequestSave(SettingsPath);
 
         ImGui::EndPopup();
     }
 
     void MainWindow::RenderExcludeMenu(MainWindowSettings* settings) {
         if (ImGui::BeginMenu("exclude")) {
-            if (ImGui::Checkbox("red team", &settings->excludeRedTeam)) Settings::Save(SettingsPath);
-            if (ImGui::Checkbox("blue team", &settings->excludeBlueTeam)) Settings::Save(SettingsPath);
-            if (ImGui::Checkbox("green team", &settings->excludeGreenTeam)) Settings::Save(SettingsPath);
+            if (ImGui::Checkbox("red team", &settings->excludeRedTeam)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("blue team", &settings->excludeBlueTeam)) Settings::RequestSave(SettingsPath);
+            if (ImGui::Checkbox("green team", &settings->excludeGreenTeam)) Settings::RequestSave(SettingsPath);
 
             ImGui::EndMenu();
         }
@@ -1049,7 +1048,7 @@ namespace wvwfightanalysis::gui {
                     if (settings->windowSort == sortType) {
                         BarTemplateRenderer::ParseTemplate(currentTemplate);
                     }
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
 
                 // If the user hovers over the InputText, show the tooltip.
@@ -1064,7 +1063,7 @@ namespace wvwfightanalysis::gui {
                     if (settings->windowSort == sortType) {
                         BarTemplateRenderer::ParseTemplate(currentTemplate);
                     }
-                    Settings::Save(SettingsPath);
+                    Settings::RequestSave(SettingsPath);
                 }
 
                 ImGui::TreePop();

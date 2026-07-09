@@ -4,6 +4,9 @@
 #include <mutex>
 #include <memory>
 #include <vector>
+#include <filesystem>
+#include <string>
+#include <unordered_map>
 #include "nlohmann/json.hpp"
 #include "imgui/imgui.h"
 
@@ -56,8 +59,6 @@ public:
     bool squadPlayersOnly = false;
     bool vsLoggedPlayersOnly = true;
     bool useNexusEscClose = false;
-    ImVec2 position;
-    ImVec2 size;
 
     // Exclusions
     bool excludeRedTeam = false;
@@ -189,6 +190,20 @@ struct WindowManager {
     void RemoveWidgetWindow();
 };
 
+struct ParserSettingsSnapshot {
+    std::string logDirectoryPath;
+    size_t logHistorySize = 10;
+    int minTotalPlayers = 0;
+    int minTotalDeaths = 0;
+    int minTotalDowns = 0;
+    int minCombatDuration = 0;
+    bool showNewParseAlert = true;
+    bool forceLinuxCompatibilityMode = false;
+    size_t pollIntervalMilliseconds = 3000;
+    bool debugStringsMode = false;
+    std::unordered_map<int, std::string> teamIDs;
+};
+
 extern const char* CUSTOM_LOG_PATH;
 extern const char* LOG_HISTORY_SIZE;
 extern const char* TEAM_PLAYER_THRESHOLD;
@@ -228,7 +243,10 @@ namespace Settings {
 
     void Load(std::filesystem::path aPath);
     void Save(std::filesystem::path aPath);
+    void RequestSave(std::filesystem::path aPath);
+    void FlushPendingSave(std::filesystem::path aPath, bool force = false);
     void InitializeDefaultWindows();
+    ParserSettingsSnapshot GetParserSettingsSnapshot();
 }
 
 #endif

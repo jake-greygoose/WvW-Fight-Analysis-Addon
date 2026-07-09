@@ -564,7 +564,7 @@ void ProcessKeybinds(const char* aIdentifier, bool aIsRelease) {
         for (auto& mainWindow : Settings::windowManager.mainWindows) {
             mainWindow->isEnabled = !anyVisible;
         }
-        Settings::Save(SettingsPath);
+        Settings::RequestSave(SettingsPath);
     }
     else if (str == "KB_WIDGET_TOGGLEVISIBLE") {
         bool anyVisible = false;
@@ -577,7 +577,7 @@ void ProcessKeybinds(const char* aIdentifier, bool aIsRelease) {
         for (auto& widgetWindow : Settings::windowManager.widgetWindows) {
             widgetWindow->isEnabled = !anyVisible;
         }
-        Settings::Save(SettingsPath);
+        Settings::RequestSave(SettingsPath);
     }
     else if (str == "LOG_INDEX_DOWN") {
         std::lock_guard<std::mutex> lock(parsedLogsMutex);
@@ -614,7 +614,7 @@ void ProcessKeybinds(const char* aIdentifier, bool aIsRelease) {
         if (Settings::windowManager.aggregateWindow) {
             Settings::windowManager.aggregateWindow->squadPlayersOnly = !Settings::windowManager.aggregateWindow->squadPlayersOnly;
         }
-        Settings::Save(SettingsPath);
+        Settings::RequestSave(SettingsPath);
     }
 }
 
