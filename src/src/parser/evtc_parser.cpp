@@ -187,10 +187,14 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 
 	uint64_t logStartTime = UINT64_MAX;
 	uint64_t logEndTime = 0;
+	uint64_t logStartUnix = 0;
+	uint64_t logEndUnix = 0;
 	result.combatStartTime = UINT64_MAX;
 	result.combatEndTime = 0;
 	uint64_t earliestTime = UINT64_MAX;
 	uint64_t latestTime = 0;
+	uint64_t earliestValidRecordingTime = UINT64_MAX;
+	uint64_t latestValidRecordingTime = 0;
 	uint64_t povAgentID = 0;
 
 	const size_t eventSize = sizeof(CombatEvent);
@@ -227,6 +231,11 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 	for (const auto& event : allEvents) {
 		earliestTime = std::min(earliestTime, event.time);
 		latestTime = std::max(latestTime, event.time);
+		constexpr uint64_t kMaxReasonableRecordingTimeMs = 7ULL * 24ULL * 60ULL * 60ULL * 1000ULL;
+		if (event.time < kMaxReasonableRecordingTimeMs) {
+			earliestValidRecordingTime = std::min(earliestValidRecordingTime, event.time);
+			latestValidRecordingTime = std::max(latestValidRecordingTime, event.time);
+		}
 
 		if (event.srcAgent != 0 && event.srcInstid != 0 &&
 			agentsByAddress.count(event.srcAgent)) {
@@ -240,9 +249,13 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 		switch (static_cast<StateChange>(event.isStateChange)) {
 		case StateChange::LogStart:
 			logStartTime = event.time;
+			if (logStartUnix == 0 && event.value != 0 && event.buffDmg != 0)
+				logStartUnix = static_cast<uint32_t>(event.value);
 			break;
 		case StateChange::LogEnd:
 			logEndTime = event.time;
+			if (event.value != 0 && event.buffDmg != 0)
+				logEndUnix = static_cast<uint32_t>(event.value);
 			break;
 		case StateChange::EnterCombat:
 			result.combatStartTime = std::min(result.combatStartTime, event.time);
@@ -330,6 +343,27 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 	if (result.combatEndTime == 0) {
 		result.combatEndTime = (logEndTime != 0) ? logEndTime : latestTime;
 	}
+
+	uint64_t recordingDurationSeconds = 0;
+	if (earliestValidRecordingTime != UINT64_MAX && latestValidRecordingTime >= earliestValidRecordingTime) {
+		recordingDurationSeconds = (latestValidRecordingTime - earliestValidRecordingTime + 500) / 1000;
+	}
+
+	if (logStartUnix == 0 && logEndUnix != 0) {
+		logStartUnix = logEndUnix > recordingDurationSeconds
+			? logEndUnix - recordingDurationSeconds
+			: 0;
+	}
+	else if (logEndUnix == 0 && logStartUnix != 0) {
+		logEndUnix = logStartUnix + recordingDurationSeconds;
+	}
+
+	if (logStartUnix != 0 && logEndUnix != 0 && logEndUnix < logStartUnix) {
+		logEndUnix = logStartUnix + recordingDurationSeconds;
+	}
+
+	result.logStartUnix = logStartUnix;
+	result.logEndUnix = logEndUnix;
 
 	// Process deaths and downs events
 	for (const auto& event : allEvents) {

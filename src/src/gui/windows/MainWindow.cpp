@@ -1,5 +1,6 @@
 #define NOMINMAX
 #include "gui/windows/MainWindow.h"
+#include "gui/ContentState.h"
 #include "resource.h"
 #include "thirdparty/imgui_positioning/imgui_positioning.h"
 #include <algorithm>
@@ -137,8 +138,15 @@ namespace wvwfightanalysis::gui {
             }
         }
 
-        if (!haveLogData) {
-            ImGui::Text(initialParsingComplete ? "No logs parsed yet." : "Parsing logs...");
+        const ContentState contentState = ResolveContentState(
+            haveLogData,
+            initialParsingComplete.load(std::memory_order_relaxed)
+        );
+
+        if (contentState != ContentState::Ready) {
+            ImGui::Text(contentState == ContentState::Empty
+                ? "No logs parsed yet."
+                : "Parsing logs...");
             ImGui::End();
             if (pushedTitleStyle)
                 ImGui::PopStyleColor(3);

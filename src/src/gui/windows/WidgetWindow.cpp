@@ -4,9 +4,37 @@
 #include "resource.h"
 #include "imgui/imgui_internal.h"
 #include "thirdparty/imgui_positioning/imgui_positioning.h"
+#include <chrono>
 #include <cmath>
+#include <ctime>
 
 namespace wvwfightanalysis::gui {
+
+static constexpr float kStackedWidgetWidth = 222.0f;
+static constexpr float kStackedWidgetHeight = 177.0f;
+
+static std::string FormatLogAge(uint64_t logTimestamp) {
+    if (logTimestamp == 0)
+        return {};
+
+    const uint64_t now = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count());
+    const uint64_t ageSeconds = now > logTimestamp ? now - logTimestamp : 0;
+
+    if (ageSeconds < 60)
+        return "<1m ago";
+    if (ageSeconds < 60 * 60)
+        return std::to_string(ageSeconds / 60) + "m ago";
+    if (ageSeconds < 24 * 60 * 60)
+        return std::to_string(ageSeconds / (60 * 60)) + "h ago";
+
+    const std::time_t logTime = static_cast<std::time_t>(logTimestamp);
+    std::tm localTime{};
+    localtime_s(&localTime, &logTime);
+    char dateBuffer[16]{};
+    std::strftime(dateBuffer, sizeof(dateBuffer), "%d %b", &localTime);
+    return dateBuffer;
+}
 
 static void ApplyCombatWobble(std::vector<float>& values, float time, float magnitude) {
     for (size_t i = 0; i < values.size(); ++i) {
@@ -60,9 +88,11 @@ static float ResolveAnimationTime(std::atomic<float>& animationTime, float rende
         ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));  // Transparent background
 
         // Use different window size for pie chart mode (square) vs bar mode (rectangle)
-        const ImVec2 widgetSize = settings->usePieChartStyle
-            ? ImVec2(settings->pieChartSize, settings->pieChartSize)
-            : ImVec2(settings->widgetWidth, settings->widgetHeight);
+        const ImVec2 widgetSize = settings->useStackedWidgetStyle
+            ? ImVec2(kStackedWidgetWidth, kStackedWidgetHeight)
+            : (settings->usePieChartStyle
+                ? ImVec2(settings->pieChartSize, settings->pieChartSize)
+                : ImVec2(settings->widgetWidth, settings->widgetHeight));
         ImGui::SetNextWindowSize(widgetSize);
 
         // Update positioning from imgui_positioning library
@@ -84,8 +114,25 @@ static float ResolveAnimationTime(std::atomic<float>& animationTime, float rende
                 }
             }
 
-            if (!haveLogData) {
-                ImGui::Text(initialParsingComplete ? "No logs parsed yet." : "Parsing logs...");
+            const ContentState contentState = ResolveContentState(
+                haveLogData,
+                initialParsingComplete.load(std::memory_order_relaxed)
+            );
+
+            if (contentState != ContentState::Ready) {
+                if (settings->useStackedWidgetStyle) {
+                    RenderStackedWidget(hSelf, widgetSize, settings, {}, nullptr, contentState);
+                }
+                else if (settings->usePieChartStyle) {
+                    ImGui::Text(contentState == ContentState::Empty
+                        ? "No logs parsed yet."
+                        : "Parsing logs...");
+                }
+                else {
+                    BarAnimState& anim = m_barAnimStates[settings];
+                    anim.contentTransition.Update(contentState, ImGui::GetIO().DeltaTime);
+                    RenderRatioBarPlaceholder(widgetSize, settings, GetOrLoadStatIcon(hSelf, settings));
+                }
             }
             else {
                 const std::vector<std::string> team_names = { "Red", "Blue", "Green" };
@@ -123,8 +170,10 @@ static float ResolveAnimationTime(std::atomic<float>& animationTime, float rende
                 const std::vector<ImVec4>& team_text_colors = MumbleLink->Context.IsInCombat ? text_colors_combat : text_colors;
 
                 // Build the list of teams to display along with the original index for each team.
-                std::vector<TeamDisplayData> teamsToDisplay;
-                std::vector<size_t> teamIndices;  // Record the original index for each team that exists.
+                WidgetRenderData renderData;
+                renderData.logTimestamp = currentLogData.logEndUnix != 0
+                    ? currentLogData.logEndUnix
+                    : currentLogData.logStartUnix;
                 for (size_t i = 0; i < team_names.size(); ++i) {
                     const auto teamIt = currentLogData.teamStats.find(team_names[i]);
                     if (teamIt == currentLogData.teamStats.end())
@@ -166,72 +215,46 @@ static float ResolveAnimationTime(std::atomic<float>& animationTime, float rende
                         snprintf(buf, sizeof(buf), "%.0f", teamCountValue);
                     }
 
-                    teamsToDisplay.push_back({ teamCountValue, current_colors[i], team_text_colors[i], std::string(buf) });
-                    teamIndices.push_back(i);
+                    renderData.counts.push_back(teamCountValue);
+                    renderData.backgroundColors.push_back(current_colors[i]);
+                    renderData.textColors.push_back(team_text_colors[i]);
+                    renderData.texts.emplace_back(buf);
+                    renderData.teamIndices.push_back(i);
+                    if (teamIt->second.isPOVTeam)
+                        renderData.povTeamIndex = static_cast<int>(i);
                 }
 
-                if (teamsToDisplay.empty()) {
+                if (renderData.counts.empty()) {
                     ImGui::Text("No team data available.");
                 }
                 else {
-                    ImTextureID currentStatIcon = nullptr;
-                    if (settings->showWidgetIcon) {
-                        if (settings->widgetStats == "players" && !Squad) {
-                            Squad = APIDefs->Textures.GetOrCreateFromResource("SQUAD_ICON", SQUAD, hSelf);
-                        }
-                        else if (settings->widgetStats == "deaths" && !Death) {
-                            Death = APIDefs->Textures.GetOrCreateFromResource("DEATH_ICON", DEATH, hSelf);
-                        }
-                        else if (settings->widgetStats == "downs" && !Downed) {
-                            Downed = APIDefs->Textures.GetOrCreateFromResource("DOWNED_ICON", DOWNED, hSelf);
-                        }
-                        else if (settings->widgetStats == "damage" && !Damage) {
-                            Damage = APIDefs->Textures.GetOrCreateFromResource("DAMAGE_ICON", DAMAGE, hSelf);
-                        }
-                        else if (settings->widgetStats == "kdr" && !Kdr) {
-                            Kdr = APIDefs->Textures.GetOrCreateFromResource("KDR_ICON", KDR, hSelf);
-                        }
-                        currentStatIcon = GetStatIcon(settings);
-                    }
-
-                    // Extract filtered vectors for counts, background colors, and texts.
-                    std::vector<float> counts;
-                    std::vector<ImVec4> colors;
-                    std::vector<const char*> texts;
-                    std::vector<ImVec4> textColorsVec;
-                    counts.reserve(teamsToDisplay.size());
-                    colors.reserve(teamsToDisplay.size());
-                    texts.reserve(teamsToDisplay.size());
-                    textColorsVec.reserve(teamsToDisplay.size());
-                    for (const auto& team : teamsToDisplay) {
-                        counts.push_back(team.count);
-                        colors.push_back(team.backgroundColor);
-                        texts.push_back(team.text.c_str());
-                        textColorsVec.push_back(team.textColor);
-                    }
+                    ImTextureID currentStatIcon = GetOrLoadStatIcon(hSelf, settings);
 
                     // Choose rendering style based on settings
-                    if (settings->usePieChartStyle) {
-                        RenderPieChart(
+                    if (settings->useStackedWidgetStyle) {
+                        RenderStackedWidget(
                             hSelf,
-                            counts,
-                            colors,
                             widgetSize,
                             settings,
-                            texts,
-                            textColorsVec
+                            renderData,
+                            currentStatIcon,
+                            ContentState::Ready
+                        );
+                    }
+                    else if (settings->usePieChartStyle) {
+                        RenderPieChart(
+                            hSelf,
+                            renderData,
+                            widgetSize,
+                            settings
                         );
                     }
                     else {
                         RenderSimpleRatioBar(
-                            counts,
-                            colors,
+                            renderData,
                             widgetSize,
-                            texts,
                             currentStatIcon,
-                            settings,
-                            team_text_colors,
-                            teamIndices
+                            settings
                         );
                     }
                 }
@@ -262,6 +285,30 @@ static float ResolveAnimationTime(std::atomic<float>& animationTime, float rende
         if (settings->widgetStats == "damage") return Damage ? Damage->Resource : nullptr;
         if (settings->widgetStats == "kdr") return Kdr ? Kdr->Resource : nullptr;
         return nullptr;
+    }
+
+    ImTextureID WidgetWindow::GetOrLoadStatIcon(HINSTANCE hSelf, const WidgetWindowSettings* settings) {
+        if (!settings->showWidgetIcon) {
+            return nullptr;
+        }
+
+        if (settings->widgetStats == "players" && !Squad) {
+            Squad = APIDefs->Textures.GetOrCreateFromResource("SQUAD_ICON", SQUAD, hSelf);
+        }
+        else if (settings->widgetStats == "deaths" && !Death) {
+            Death = APIDefs->Textures.GetOrCreateFromResource("DEATH_ICON", DEATH, hSelf);
+        }
+        else if (settings->widgetStats == "downs" && !Downed) {
+            Downed = APIDefs->Textures.GetOrCreateFromResource("DOWNED_ICON", DOWNED, hSelf);
+        }
+        else if (settings->widgetStats == "damage" && !Damage) {
+            Damage = APIDefs->Textures.GetOrCreateFromResource("DAMAGE_ICON", DAMAGE, hSelf);
+        }
+        else if (settings->widgetStats == "kdr" && !Kdr) {
+            Kdr = APIDefs->Textures.GetOrCreateFromResource("KDR_ICON", KDR, hSelf);
+        }
+
+        return GetStatIcon(settings);
     }
 
     void WidgetWindow::RenderSettingsPopup(WidgetWindowSettings* settings) {
@@ -342,6 +389,17 @@ static float ResolveAnimationTime(std::atomic<float>& animationTime, float rende
             }
 
             if (ImGui::Checkbox("use pie chart style", &settings->usePieChartStyle)) {
+                if (settings->usePieChartStyle)
+                    settings->useStackedWidgetStyle = false;
+                Settings::Settings["usePieChartStyle"] = settings->usePieChartStyle;
+                Settings::Settings["useStackedWidgetStyle"] = settings->useStackedWidgetStyle;
+                Settings::RequestSave(SettingsPath);
+            }
+
+            if (ImGui::Checkbox("use stacked widget style", &settings->useStackedWidgetStyle)) {
+                if (settings->useStackedWidgetStyle)
+                    settings->usePieChartStyle = false;
+                Settings::Settings["useStackedWidgetStyle"] = settings->useStackedWidgetStyle;
                 Settings::Settings["usePieChartStyle"] = settings->usePieChartStyle;
                 Settings::RequestSave(SettingsPath);
             }
@@ -365,7 +423,7 @@ static float ResolveAnimationTime(std::atomic<float>& animationTime, float rende
             }
 
             // Bar mode controls (only shown in bar mode)
-            if (!settings->usePieChartStyle) {
+            if (!settings->usePieChartStyle && !settings->useStackedWidgetStyle) {
                 float currentFrameRounding = ImGui::GetStyle().FrameRounding;
                 if (!currentFrameRounding) {
                     ImGui::SetNextItemWidth(200.0f);
@@ -556,17 +614,111 @@ static float ResolveAnimationTime(std::atomic<float>& animationTime, float rende
     }
 
 
-    void WidgetWindow::RenderSimpleRatioBar(
-        const std::vector<float>& counts,
-        const std::vector<ImVec4>& colors,
+    void WidgetWindow::RenderRatioBarPlaceholder(
         const ImVec2& size,
-        const std::vector<const char*>& texts,
-        ImTextureID statIcon,
         const WidgetWindowSettings* settings,
-        const std::vector<ImVec4>& textColors,
-        const std::vector<size_t>& teamIndices
+        ImTextureID statIcon
     )
     {
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+        const ImVec2 p = ImGui::GetCursorScreenPos();
+        ImGui::PushFont(settings->largerFont ? MenomoniaSansLarge : MenomoniaSansMedium);
+
+        float currentFrameRounding = ImGui::GetStyle().FrameRounding;
+        float rounding = (currentFrameRounding > 0.0f)
+            ? currentFrameRounding
+            : static_cast<float>(settings->widgetRoundness);
+
+        BarAnimState& anim = m_barAnimStates[settings];
+        anim.labelAlpha = 0.0f;
+        anim.smoothedFractions.clear();
+        anim.fractionVel.clear();
+
+        const float time = static_cast<float>(ImGui::GetTime());
+        const float pulse = 0.82f + 0.18f * sinf(time * 2.2f);
+        const int outlineAlpha = static_cast<int>(150.0f * pulse);
+        const int glowAlpha = static_cast<int>(34.0f * pulse);
+        const ImU32 goldOutline = IM_COL32(214, 172, 82, outlineAlpha);
+        const ImU32 goldFill = IM_COL32(214, 172, 82, glowAlpha);
+        const bool hasIcon = settings->showWidgetIcon && statIcon != nullptr;
+
+        draw_list->AddRectFilled(
+            p,
+            ImVec2(p.x + size.x, p.y + size.y),
+            goldFill,
+            rounding,
+            ImDrawCornerFlags_All
+        );
+        draw_list->AddRect(
+            p,
+            ImVec2(p.x + size.x, p.y + size.y),
+            goldOutline,
+            rounding,
+            ImDrawCornerFlags_All,
+            (std::max)(1.0f, settings->widgetBorderThickness)
+        );
+
+        if (hasIcon) {
+            constexpr float kLeftPadding = 10.0f;
+            constexpr float kRightPadding = 5.0f;
+            constexpr float kInterPadding = 5.0f;
+            const float iconSize = ImGui::GetFontSize();
+            const float iconAreaWidth = kLeftPadding + iconSize + kRightPadding;
+            const float iconBGWidth = iconAreaWidth + kInterPadding;
+
+            draw_list->AddRectFilled(
+                p,
+                ImVec2(p.x + iconBGWidth, p.y + size.y),
+                IM_COL32(0, 0, 0, static_cast<int>(160.0f * pulse)),
+                rounding,
+                ImDrawCornerFlags_Left
+            );
+
+            const float iconX = p.x + kLeftPadding;
+            const float iconY = p.y + (size.y - iconSize) * 0.5f;
+            draw_list->AddImage(
+                statIcon,
+                ImVec2(iconX, iconY),
+                ImVec2(iconX + iconSize, iconY + iconSize),
+                ImVec2(0, 0),
+                ImVec2(1, 1),
+                IM_COL32(255, 255, 255, static_cast<int>(185.0f * pulse))
+            );
+        }
+
+        const float inset = 2.0f;
+        draw_list->AddRect(
+            ImVec2(p.x + inset, p.y + inset),
+            ImVec2(p.x + size.x - inset, p.y + size.y - inset),
+            IM_COL32(214, 172, 82, static_cast<int>(55.0f * pulse)),
+            (std::max)(0.0f, rounding - inset),
+            ImDrawCornerFlags_All,
+            1.0f
+        );
+        draw_list->AddRect(
+            p,
+            ImVec2(p.x + size.x, p.y + size.y),
+            goldOutline,
+            rounding,
+            ImDrawCornerFlags_All,
+            (std::max)(1.0f, settings->widgetBorderThickness)
+        );
+
+        ImGui::Dummy(size);
+        ImGui::PopFont();
+    }
+
+    void WidgetWindow::RenderSimpleRatioBar(
+        const WidgetRenderData& data,
+        const ImVec2& size,
+        ImTextureID statIcon,
+        const WidgetWindowSettings* settings
+    )
+    {
+        const auto& counts = data.counts;
+        const auto& colors = data.backgroundColors;
+        const auto& textColors = data.textColors;
+        const std::vector<const char*> texts = data.TextPointers();
         ImDrawList* draw_list = ImGui::GetWindowDrawList();
        
         // Get current position in the window
@@ -631,6 +783,13 @@ static float ResolveAnimationTime(std::atomic<float>& animationTime, float rende
         float time = static_cast<float>(ImGui::GetTime());
         float dt = ImGui::GetIO().DeltaTime;
         if (dt <= 0.0f) dt = 1.0f / 60.0f;
+
+        const float previousDataAlpha = anim.contentTransition.ContentAlpha();
+        anim.contentTransition.Update(ContentState::Ready, dt);
+        const float dataAlpha = anim.contentTransition.ContentAlpha();
+        if (previousDataAlpha <= 0.0f && dataAlpha > 0.0f) {
+            labelAlpha = 0.0f;
+        }
 
         // Start with base fractions, modified by animations
         std::vector<float> displayFractions = fractions;
@@ -715,7 +874,7 @@ static float ResolveAnimationTime(std::atomic<float>& animationTime, float rende
             draw_list->AddRectFilled(
                 ImVec2(x, topY),
                 ImVec2(x + iconBGWidth, topY + displayHeight),
-                IM_COL32(0, 0, 0, 230),
+                IM_COL32(0, 0, 0, static_cast<int>(230.0f * dataAlpha)),
                 rounding,
                 ImDrawCornerFlags_Left
             );
@@ -725,7 +884,10 @@ static float ResolveAnimationTime(std::atomic<float>& animationTime, float rende
             draw_list->AddImage(
                 statIcon,
                 ImVec2(iconX, iconY),
-                ImVec2(iconX + iconWidth, iconY + iconHeight)
+                ImVec2(iconX + iconWidth, iconY + iconHeight),
+                ImVec2(0, 0),
+                ImVec2(1, 1),
+                IM_COL32(255, 255, 255, static_cast<int>(255.0f * dataAlpha))
             );
         }
 
@@ -772,7 +934,14 @@ static float ResolveAnimationTime(std::atomic<float>& animationTime, float rende
             draw_list->AddRectFilled(
                 ImVec2(seg_left - 0.5f, topY),
                 ImVec2(seg_right + 0.5f, topY + displayHeight),
-                displayColors[idx],
+                [&]() {
+                    ImU32 color = displayColors[idx];
+                    int r = (color >> 0) & 0xFF;
+                    int g = (color >> 8) & 0xFF;
+                    int b = (color >> 16) & 0xFF;
+                    int a = (color >> 24) & 0xFF;
+                    return IM_COL32(r, g, b, static_cast<int>(a * dataAlpha));
+                }(),
                 rounding,
                 corners
             );
@@ -786,17 +955,9 @@ static float ResolveAnimationTime(std::atomic<float>& animationTime, float rende
                     float text_center_x = seg_left + (sectionDrawWidth - textSize.x) * 0.5f + settings->textHorizontalAlignOffset;
                     float center_y = topY + (displayHeight - textSize.y) * 0.5f + settings->textVerticalAlignOffset;
 
-                    // Drop shadow (alpha follows the label fade)
-                    draw_list->AddText(
-                        ImVec2(text_center_x + 2.0f, center_y + 2.0f),
-                        IM_COL32(0, 0, 0, static_cast<int>(180.0f * labelAlpha)),
-                        texts[idx]
-                    );
-
                     // Main text (alpha follows the label fade)
-                    size_t origTeam = teamIndices[j];
-                    ImVec4 textCol = textColors[origTeam];
-                    textCol.w *= labelAlpha;
+                    ImVec4 textCol = textColors[idx];
+                    textCol.w *= labelAlpha * dataAlpha;
                     draw_list->AddText(
                         ImVec2(text_center_x, center_y),
                         ImGui::ColorConvertFloat4ToU32(textCol),
@@ -847,13 +1008,36 @@ static float ResolveAnimationTime(std::atomic<float>& animationTime, float rende
 
         // Optional: draw a border around the entire widget
         if (settings->widgetBorderThickness > 0.0f) {
+            ImVec4 borderColor = settings->colors.widgetBorder;
+            borderColor.w *= dataAlpha;
             draw_list->AddRect(
                 ImVec2(x, topY),
                 ImVec2(x + width, topY + displayHeight),
-                ImGui::ColorConvertFloat4ToU32(settings->colors.widgetBorder),
+                ImGui::ColorConvertFloat4ToU32(borderColor),
                 rounding,
                 ImDrawCornerFlags_All,
                 settings->widgetBorderThickness
+            );
+        }
+
+        const float placeholderAlpha = anim.contentTransition.PlaceholderAlpha();
+        if (placeholderAlpha > 0.0f) {
+            const int outlineAlpha = static_cast<int>(150.0f * placeholderAlpha);
+            const int glowAlpha = static_cast<int>(34.0f * placeholderAlpha);
+            draw_list->AddRectFilled(
+                ImVec2(x, topY),
+                ImVec2(x + width, topY + displayHeight),
+                IM_COL32(214, 172, 82, glowAlpha),
+                rounding,
+                ImDrawCornerFlags_All
+            );
+            draw_list->AddRect(
+                ImVec2(x, topY),
+                ImVec2(x + width, topY + displayHeight),
+                IM_COL32(214, 172, 82, outlineAlpha),
+                rounding,
+                ImDrawCornerFlags_All,
+                (std::max)(1.0f, settings->widgetBorderThickness)
             );
         }
 
@@ -864,14 +1048,224 @@ static float ResolveAnimationTime(std::atomic<float>& animationTime, float rende
 
     }
 
-    void WidgetWindow::RenderPieChart(
+    void WidgetWindow::RenderStackedWidget(
         HINSTANCE hSelf,
-        const std::vector<float>& counts,
-        const std::vector<ImVec4>& colors,
         const ImVec2& size,
         const WidgetWindowSettings* settings,
-        const std::vector<const char*>& texts,
-        const std::vector<ImVec4>& textColors) {
+        const WidgetRenderData& data,
+        ImTextureID statIcon,
+        ContentState contentState)
+    {
+        const std::vector<const char*> texts = data.TextPointers();
+        const auto& teamIndices = data.teamIndices;
+        const int povTeamIndex = data.povTeamIndex;
+        const uint64_t logTimestamp = data.logTimestamp;
+        if (!StackedBackground) {
+            StackedBackground = APIDefs->Textures.GetOrCreateFromResource(
+                "STACKED_BACKGROUND",
+                STACKED_BACKGROUND,
+                hSelf
+            );
+        }
+        if (povTeamIndex >= 0 && !StackedHome) {
+            StackedHome = APIDefs->Textures.GetOrCreateFromResource(
+                "STACKED_HOME",
+                STACKED_HOME,
+                hSelf
+            );
+        }
+        if (logTimestamp != 0 && !StackedTime) {
+            StackedTime = APIDefs->Textures.GetOrCreateFromResource(
+                "STACKED_TIME",
+                STACKED_TIME,
+                hSelf
+            );
+        }
+
+        const ImVec2 drawPos = ImGui::GetCursorScreenPos();
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        const float time = static_cast<float>(ImGui::GetTime());
+        float dt = ImGui::GetIO().DeltaTime;
+        if (dt <= 0.0f)
+            dt = 1.0f / 60.0f;
+
+        StackedAnimState& anim = m_stackedAnimStates[settings];
+        anim.contentTransition.Update(contentState, dt);
+
+        bool hideLabels = contentState != ContentState::Ready;
+        const float newLogTime = ResolveAnimationTime(newLogDetectedTime, time);
+        if (newLogTime > 0.0f) {
+            const float elapsed = time - newLogTime;
+            hideLabels = hideLabels || elapsed < 0.5f;
+            if (elapsed > 1.0f)
+                newLogDetectedTime.store(0.0f);
+        }
+
+        const float parseTime = ResolveAnimationTime(parseCompleteTime, time);
+        if (parseTime > 0.0f) {
+            const float elapsed = time - parseTime;
+            hideLabels = hideLabels || elapsed < 0.35f;
+            if (elapsed > 1.0f)
+                parseCompleteTime.store(0.0f);
+        }
+
+        const float targetLabelAlpha = hideLabels ? 0.0f : anim.contentTransition.ContentAlpha();
+        anim.labelAlpha += (targetLabelAlpha - anim.labelAlpha) * (1.0f - expf(-dt / 0.12f));
+        anim.labelAlpha = (std::max)(0.0f, (std::min)(1.0f, anim.labelAlpha));
+        const int labelAlpha = static_cast<int>(255.0f * anim.labelAlpha);
+
+        if (StackedBackground) {
+            drawList->AddImage(
+                StackedBackground->Resource,
+                drawPos,
+                ImVec2(drawPos.x + size.x, drawPos.y + size.y)
+            );
+        }
+
+        if (MumbleLink->Context.IsInCombat) {
+            constexpr float kSweepPeriod = 3.4f;
+            const float phase = fmodf(time, kSweepPeriod) / kSweepPeriod;
+            const float sweepCenter = drawPos.x - size.x * 0.2f + size.x * 1.4f * phase;
+            const float halfWidth = size.x * 0.16f;
+            const float edgeFade = sinf(phase * 3.14159265358979323846f);
+            const ImU32 clear = IM_COL32(255, 255, 255, 0);
+            const ImU32 highlight = IM_COL32(255, 255, 255, static_cast<int>(30.0f * edgeFade));
+            drawList->PushClipRect(drawPos, ImVec2(drawPos.x + size.x, drawPos.y + size.y), true);
+            drawList->AddRectFilledMultiColor(
+                ImVec2(sweepCenter - halfWidth, drawPos.y),
+                ImVec2(sweepCenter, drawPos.y + size.y),
+                clear, highlight, highlight, clear);
+            drawList->AddRectFilledMultiColor(
+                ImVec2(sweepCenter, drawPos.y),
+                ImVec2(sweepCenter + halfWidth, drawPos.y + size.y),
+                highlight, clear, clear, highlight);
+            drawList->PopClipRect();
+        }
+
+        if (parseTime > 0.0f) {
+            const float elapsed = time - parseTime;
+            if (elapsed >= 0.0f && elapsed < 0.8f) {
+                const float pulse = sinf((elapsed / 0.8f) * 3.14159265358979323846f);
+                drawList->AddRect(
+                    ImVec2(drawPos.x + 2.0f, drawPos.y + 2.0f),
+                    ImVec2(drawPos.x + size.x - 2.0f, drawPos.y + size.y - 2.0f),
+                    IM_COL32(214, 172, 82, static_cast<int>(55.0f * pulse)),
+                    4.0f,
+                    ImDrawCornerFlags_All,
+                    1.0f);
+            }
+        }
+
+        if (statIcon) {
+            constexpr float kStatIconSize = 30.0f;
+            const ImVec2 iconPos(drawPos.x + 10.0f, drawPos.y + 10.0f);
+            drawList->AddImage(
+                statIcon,
+                iconPos,
+                ImVec2(iconPos.x + kStatIconSize, iconPos.y + kStatIconSize)
+            );
+        }
+
+        const std::string ageText = FormatLogAge(logTimestamp);
+        if (!ageText.empty()) {
+            constexpr float kTimeIconSize = 16.0f;
+            constexpr float kTimeIconGap = 4.0f;
+            constexpr float kTopRightMarginX = 59.0f;
+            constexpr float kTopRightMarginY = 10.0f;
+            ImGui::PushFont(MenomoniaSansSmall);
+            const ImVec2 ageTextSize = ImGui::CalcTextSize(ageText.c_str());
+            const float iconWidth = StackedTime && StackedTime->Resource ? kTimeIconSize + kTimeIconGap : 0.0f;
+            const float groupWidth = iconWidth + ageTextSize.x;
+            const ImVec2 groupPos(
+                drawPos.x + size.x - kTopRightMarginX - groupWidth,
+                drawPos.y + kTopRightMarginY
+            );
+
+            if (StackedTime && StackedTime->Resource) {
+                drawList->AddImage(
+                    StackedTime->Resource,
+                    groupPos,
+                    ImVec2(groupPos.x + kTimeIconSize, groupPos.y + kTimeIconSize)
+                );
+            }
+
+            drawList->AddText(
+                ImVec2(groupPos.x + iconWidth, groupPos.y + (kTimeIconSize - ageTextSize.y) * 0.5f),
+                IM_COL32(255, 255, 255, 255),
+                ageText.c_str()
+            );
+            ImGui::PopFont();
+        }
+
+        if (!texts.empty()) {
+            constexpr float kTextColumnCenterX = 103.0f;
+            const ImVec2 bandCenters[3] = {
+                ImVec2(kTextColumnCenterX, 82.0f),  // Red
+                ImVec2(kTextColumnCenterX, 40.0f),  // Blue
+                ImVec2(kTextColumnCenterX, 125.0f)  // Green
+            };
+            const char* teamTexts[3] = { "0", "0", "0" };
+            ImVec4 teamTextColors[3] = {
+                settings->colors.redText,
+                settings->colors.blueText,
+                settings->colors.greenText
+            };
+
+            for (size_t i = 0; i < texts.size() && i < teamIndices.size(); ++i) {
+                const size_t teamIndex = teamIndices[i];
+                if (teamIndex >= 3)
+                    continue;
+
+                teamTexts[teamIndex] = texts[i];
+            }
+
+            ImGui::PushFont(settings->largerFont ? MenomoniaSansLarge : MenomoniaSansMedium);
+            for (size_t teamIndex = 0; teamIndex < 3; ++teamIndex) {
+                const ImVec2 textSize = ImGui::CalcTextSize(teamTexts[teamIndex]);
+                const ImVec2 textPos(
+                    drawPos.x + bandCenters[teamIndex].x - textSize.x * 0.5f + settings->textHorizontalAlignOffset,
+                    drawPos.y + bandCenters[teamIndex].y - textSize.y * 0.5f + settings->textVerticalAlignOffset
+                );
+                if (static_cast<int>(teamIndex) == povTeamIndex && StackedHome && StackedHome->Resource) {
+                    constexpr float kHomeIconSize = 16.0f;
+                    constexpr float kHomeIconGap = 4.0f;
+                    const ImVec2 homePos(
+                        textPos.x - kHomeIconGap - kHomeIconSize,
+                        drawPos.y + bandCenters[teamIndex].y - kHomeIconSize * 0.5f
+                    );
+                    drawList->AddImage(
+                        StackedHome->Resource,
+                        homePos,
+                        ImVec2(homePos.x + kHomeIconSize, homePos.y + kHomeIconSize),
+                        ImVec2(0, 0),
+                        ImVec2(1, 1),
+                        IM_COL32(255, 255, 255, labelAlpha)
+                    );
+                }
+                ImVec4 textColor = teamTextColors[teamIndex];
+                textColor.w *= anim.labelAlpha;
+                drawList->AddText(
+                    textPos,
+                    ImGui::ColorConvertFloat4ToU32(textColor),
+                    teamTexts[teamIndex]
+                );
+            }
+            ImGui::PopFont();
+        }
+
+        ImGui::Dummy(size);
+    }
+
+    void WidgetWindow::RenderPieChart(
+        HINSTANCE hSelf,
+        const WidgetRenderData& data,
+        const ImVec2& size,
+        const WidgetWindowSettings* settings) {
+
+        const auto& counts = data.counts;
+        const auto& colors = data.backgroundColors;
+        const auto& textColors = data.textColors;
+        const std::vector<const char*> texts = data.TextPointers();
 
         // Load pie chart textures if not already loaded
         if (!PieBackground) {
@@ -1293,14 +1687,6 @@ static float ResolveAnimationTime(std::atomic<float>& animationTime, float rende
             // Apply vertical/horizontal alignment offsets from settings
             textPos.y += settings->textVerticalAlignOffset;
             textPos.x += settings->textHorizontalAlignOffset;
-
-            // Draw drop shadow (offset text in dark color)
-            ImVec2 shadowOffset(2.0f, 2.0f);
-            draw_list->AddText(
-                ImVec2(textPos.x + shadowOffset.x, textPos.y + shadowOffset.y),
-                IM_COL32(0, 0, 0, 180),  // Semi-transparent black shadow
-                texts[i]
-            );
 
             // Draw the main text on top
             draw_list->AddText(

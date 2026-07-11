@@ -88,6 +88,15 @@
     <ResourceCompile Include="Resource.rc" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="assets\stacked_background.png">
+      <Filter>Assets</Filter>
+    </Image>
+    <Image Include="assets\home_tex.png">
+      <Filter>Assets</Filter>
+    </Image>
+    <Image Include="assets\time_icon.png">
+      <Filter>Assets</Filter>
+    </Image>
     <Image Include="assets\berserker_16x16.png">
       <Filter>Assets</Filter>
     </Image>

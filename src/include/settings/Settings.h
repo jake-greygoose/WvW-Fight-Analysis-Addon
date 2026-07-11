@@ -131,6 +131,7 @@ struct WidgetWindowSettings : public BaseWindowSettings {
     float widgetBorderThickness = 1.0f;
     float widgetRoundness = 0.0f;
     bool usePieChartStyle = false;  // Toggle between horizontal bar and pie chart
+    bool useStackedWidgetStyle = false;
 
     struct Colors {
         // Normal colors

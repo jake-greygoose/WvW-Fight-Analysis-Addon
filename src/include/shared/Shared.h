@@ -81,6 +81,9 @@ extern Texture* Strips;
 extern Texture* PieBackground;
 extern Texture* PieGlobe;
 extern Texture* PieSeparator;
+extern Texture* StackedBackground;
+extern Texture* StackedHome;
+extern Texture* StackedTime;
 
 extern ImFont* MenomoniaSansExtraSmall;
 extern ImFont* MenomoniaSansVerySmall;
@@ -216,6 +219,8 @@ struct ParsedData {
     std::unordered_map<std::string, TeamStats> teamStats;
     uint64_t combatStartTime = 0;
     uint64_t combatEndTime = 0;
+    uint64_t logStartUnix = 0;
+    uint64_t logEndUnix = 0;
     uint16_t fightId = 0;
     size_t totalIdentifiedPlayers = 0;
 
@@ -224,6 +229,17 @@ struct ParsedData {
             return (combatEndTime - combatStartTime) / 1000.0;
         }
         return 0.0;
+    }
+
+    bool hasWallClockTime() const {
+        return logStartUnix != 0 || logEndUnix != 0;
+    }
+
+    uint64_t getLogAgeSeconds(uint64_t nowUnixSeconds) const {
+        const uint64_t referenceTime = logEndUnix != 0 ? logEndUnix : logStartUnix;
+        return referenceTime != 0 && nowUnixSeconds > referenceTime
+            ? nowUnixSeconds - referenceTime
+            : 0;
     }
 };
 

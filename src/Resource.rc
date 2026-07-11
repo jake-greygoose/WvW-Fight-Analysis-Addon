@@ -438,6 +438,12 @@ PIE_GLOBE               PNG                     "assets\\pie_globe.png"
 
 PIE_SEPARATOR           PNG                     "assets\\pie_seperator.png"
 
+STACKED_BACKGROUND      PNG                     "assets\\stacked_background.png"
+
+STACKED_HOME            PNG                     "assets\\home_tex.png"
+
+STACKED_TIME            PNG                     "assets\\time_icon.png"
+
 
 /////////////////////////////////////////////////////////////////////////////
 //

@@ -200,6 +200,7 @@ json WidgetWindowSettings::toJson() const {
     j["widgetBorderThickness"] = widgetBorderThickness;
     j["widgetRoundness"] = widgetRoundness;
     j["usePieChartStyle"] = usePieChartStyle;
+    j["useStackedWidgetStyle"] = useStackedWidgetStyle;
     // Color settings
     j["colors"] = {
         {"redBackground", colors.redBackground},
@@ -312,6 +313,9 @@ WidgetWindowSettings::WidgetWindowSettings(const json& j) : BaseWindowSettings(j
         widgetRoundness = j.value("widgetRoundness", widgetRoundness);
         widgetBorderThickness = j.value("widgetBorderThickness", widgetBorderThickness);
         usePieChartStyle = j.value("usePieChartStyle", usePieChartStyle);
+        useStackedWidgetStyle = j.value("useStackedWidgetStyle", useStackedWidgetStyle);
+        if (useStackedWidgetStyle)
+            usePieChartStyle = false;
 
         if (j.contains("colors")) {
             const auto& colorsJson = j["colors"];

@@ -268,6 +268,9 @@
     <ResourceCompile Include="autoversion.rc" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="assets\stacked_background.png" />
+    <Image Include="assets\home_tex.png" />
+    <Image Include="assets\time_icon.png" />
     <Image Include="assets\Arena_Proprietor_16x16.png" />
     <Image Include="assets\Arena_Proprietor_icon.png" />
     <Image Include="assets\berserker_16x16.png" />

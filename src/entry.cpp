@@ -38,7 +38,7 @@ static const FontEntry kFonts[] = {
     {"MENOMONIA_SMALL_MEDIUM",   15.0f, &MenomoniaSansSmallMedium},
     {"MENOMONIA_MEDIUM_SMALL",   17.0f, &MenomoniaSansMediumSmall},
     {"MENOMONIA_MEDIUMISH",      18.0f, &MenomoniaSansMediumish},
-    {"MENOMONIA_MEDIUM",         20.0f, &MenomoniaSansMedium},
+    {"MENOMONIA_MEDIUM",         21.0f, &MenomoniaSansMedium},
     {"MENOMONIA_MEDIUM_LARGE",   26.0f, &MenomoniaSansMediumLarge},
     {"MENOMONIA_LARGE",          32.0f, &MenomoniaSansLarge},
     {"MENOMONIA_EXTRA_LARGE",    40.0f, &MenomoniaSansExtraLarge},

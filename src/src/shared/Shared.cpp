@@ -76,6 +76,9 @@ Texture* Strips = nullptr;
 Texture* PieBackground = nullptr;
 Texture* PieGlobe = nullptr;
 Texture* PieSeparator = nullptr;
+Texture* StackedBackground = nullptr;
+Texture* StackedHome = nullptr;
+Texture* StackedTime = nullptr;
 
 ImFont* MenomoniaSansExtraSmall = nullptr;
 ImFont* MenomoniaSansVerySmall = nullptr;
