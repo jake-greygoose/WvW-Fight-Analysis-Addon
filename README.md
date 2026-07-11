@@ -2,6 +2,8 @@
 Inspired by Know Thy Enemy, an addon to parse team player numbers from evtc logs in WvW.
 
 ## What's New
+#### July 2026
+- Added stacked widget.
 #### June 2026
 - Parsing fixed for log changes, out of squad allies correctly counted again.
 - Team colors now derived from log, team id's won't have to be updated after patches anymore.
