@@ -157,6 +157,7 @@ void parseAgents(const std::vector<char>& bytes, size_t& offset, uint32_t agentC
 	}
 }
 static constexpr uint8_t SC_ID_TO_GUID = 46;
+static constexpr uint8_t SC_WVW_TEAMS = 74;
 
 static std::string guidToHex(uint64_t first8, uint64_t last8) {
 	static const char hex[] = "0123456789ABCDEF";
@@ -221,10 +222,27 @@ void parseCombatEvents(const std::vector<char>& bytes, size_t offset, size_t eve
 	// Pre-scan IDToGUID events to auto-detect WvW team colors from stable GUIDs.
 	std::unordered_map<uint32_t, std::string> teamIdToColor;
 	for (const auto& ev : allEvents) {
+		if (ev.isStateChange == SC_WVW_TEAMS) {
+			uint32_t fields[6];
+			static_assert(sizeof(fields) == sizeof(ev.srcAgent) + sizeof(ev.dstAgent) + sizeof(ev.value) + sizeof(ev.buffDmg));
+			std::memcpy(&fields[0], &ev.srcAgent, sizeof(ev.srcAgent));
+			std::memcpy(&fields[2], &ev.dstAgent, sizeof(ev.dstAgent));
+			std::memcpy(&fields[4], &ev.value, sizeof(ev.value));
+			std::memcpy(&fields[5], &ev.buffDmg, sizeof(ev.buffDmg));
+			if (fields[3] != 0) teamIdToColor[fields[3]] = "Red";
+			if (fields[4] != 0) teamIdToColor[fields[4]] = "Blue";
+			if (fields[5] != 0) teamIdToColor[fields[5]] = "Green";
+			if (settings.debugStringsMode) {
+				APIDefs->Log(ELogLevel_DEBUG, ADDON_NAME,
+					("WVWTEAMS: red=" + std::to_string(fields[3]) + " blue=" + std::to_string(fields[4]) +
+					" green=" + std::to_string(fields[5])).c_str());
+			}
+			continue;
+		}
 		if (ev.isStateChange != SC_ID_TO_GUID || ev.skillId == 0) continue;
 		auto it = WVW_TEAM_COLOR_GUIDS.find(guidToHex(ev.srcAgent, ev.dstAgent));
 		if (it != WVW_TEAM_COLOR_GUIDS.end())
-			teamIdToColor[ev.skillId] = it->second;
+			teamIdToColor.emplace(ev.skillId, it->second);
 	}
 
 	// Process all events

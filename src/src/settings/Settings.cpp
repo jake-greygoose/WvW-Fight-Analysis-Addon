@@ -33,7 +33,7 @@ static const std::unordered_map<int, std::string> DEFAULT_TEAM_IDS = {
     {707, "Red"}, {882, "Red"}, {885, "Red"}, {886, "Red"}, {2520, "Red"},
     // Green team IDs
     {39, "Green"}, {2739, "Green"}, {2741, "Green"},
-    {2752, "Green"}, {2763, "Green"}, {2767, "Green"},
+    {2752, "Green"}, {2763, "Green"}, {2767, "Green"}, {2778, "Green"},
     // Blue team IDs
     {432, "Blue"}, {433, "Blue"}, {1277, "Blue"},
     {1281, "Blue"}, {1282, "Blue"}, {1989, "Blue"}, {1996, "Blue"}
